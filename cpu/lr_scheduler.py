@@ -108,3 +108,16 @@ class LRWarmupScheduler(_LRScheduler):
             self.scheduler.last_epoch += 1
             self.regular_lrs = self.scheduler._get_closed_form_lr()
         return [warmup_fator * lr for lr in self.regular_lrs]
+
+    def state_dict(self):
+        state = {
+            key: value
+            for key, value in self.__dict__.items()
+            if key != "optimizer" and key != "scheduler"
+        }
+        state["scheduler_state_dict"] = self.scheduler.state_dict()
+        return state
+
+    def load_state_dict(self, state_dict):
+        self.scheduler.load_state_dict(state_dict.pop("scheduler_state_dict"))
+        self.__dict__.update(state_dict)
