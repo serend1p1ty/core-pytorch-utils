@@ -33,8 +33,8 @@ class LRWarmupScheduler(_LRScheduler):
 
     .. Note::
 
-        PyTorch LR scheduler assumes the LR changes only on epoch boundaries. We typically use
-        iteration based schedules instead. As a result, "epoch" (e.g., as in self.last_epoch)
+        PyTorch's LR scheduler assumes the LR changes only on epoch boundaries. However, we use
+        iteration based schedules. As a result, "epoch" (e.g., self.last_epoch)
         should be understood to mean "iteration" instead.
 
     Args:
@@ -45,7 +45,8 @@ class LRWarmupScheduler(_LRScheduler):
         warmup_iters (int, optional): The number of iterations that warmup lasts. Defaults to 1000.
         warmup_factor (float, optional): LR used at the beginning of warmup equals to
             ``warmup_factor * initial_lr``. Defaults to 0.001.
-        last_epoch (int, optional): Create a member variable ``self.last_epoch``. Defaults to -1.
+        last_epoch (int, optional): Create a member variable ``self.last_epoch`` to represent
+            the last iteration. Defaults to -1.
     """
 
     def __init__(
@@ -103,7 +104,7 @@ class LRWarmupScheduler(_LRScheduler):
     def get_lr(self) -> float:
         warmup_fator = self._get_warmup_factor()
         if self._reach_epoch_end():
-            # `self.scheduler.last_epoch` is really last epoch
+            # `self.scheduler.last_epoch` is really the last epoch
             self.scheduler.last_epoch += 1
             self.regular_lrs = self.scheduler._get_closed_form_lr()
         return [warmup_fator * lr for lr in self.regular_lrs]
