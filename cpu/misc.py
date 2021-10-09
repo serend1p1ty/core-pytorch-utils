@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 import time
 
@@ -56,7 +57,7 @@ def highlight(code: str, filename: str) -> str:
     return code
 
 
-def set_random_seed(seed, deterministic: bool = False) -> None:
+def set_random_seed(seed: int, deterministic: bool = False) -> None:
     """Set random seed.
 
     Args:
@@ -74,3 +75,16 @@ def set_random_seed(seed, deterministic: bool = False) -> None:
     if deterministic:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+
+def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
+    """Create a symlink, dst -> src.
+
+    Args:
+        src (str): Path to source.
+        dst (str): Path to target.
+        overwrite (bool, optional): If True, remove existed target. Defaults to True.
+    """
+    if os.path.lexists(dst) and overwrite:
+        os.remove(dst)
+    os.symlink(src, dst, **kwargs)

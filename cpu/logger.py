@@ -26,7 +26,7 @@ def setup_logger(
     name: Optional[str] = None,
     output: Optional[str] = None,
     log_level: int = logging.DEBUG,
-    distributed_rank: int = 0,
+    rank: int = 0,
     color: bool = True,
 ) -> logging.Logger:
     """Initialize the logger.
@@ -95,7 +95,7 @@ def setup_logger(
     )
 
     # stdout and file logging: master only
-    if distributed_rank == 0:
+    if rank == 0:
         ch = logging.StreamHandler(stream=sys.stdout)
         ch.setLevel(log_level)
         if color:

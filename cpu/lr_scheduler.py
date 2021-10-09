@@ -39,7 +39,8 @@ class LRWarmupScheduler(_LRScheduler):
 
     Args:
         scheduler (torch.optim.lr_scheduler._LRScheduler): Standard epoch-based LR scheduler.
-        epoch_len (int): Length of one epoch, used for calling epoch-based LR scheduler at epoch end.
+        epoch_len (int): Length of one epoch, used for calling epoch-based
+            LR scheduler at epoch end.
         warmup_method (str, optional): Type of warmup used. It can be None (no warmup),
             "constant", "linear" or "exp". Defaults to None.
         warmup_iters (int, optional): The number of iterations that warmup lasts. Defaults to 1000.
@@ -65,15 +66,13 @@ class LRWarmupScheduler(_LRScheduler):
         self.warmup_factor = warmup_factor
 
         if self._enable_warmup():
-            if warmup_method not in ["constant", "linear", "exp"]:
-                raise ValueError(
-                    f"'{warmup_method}' is not a supported type for warmup, valid"
-                    " types are 'constant', 'linear' or 'exp'"
-                )
-            if not callable(getattr(scheduler, "_get_closed_form_lr", None)):
-                raise NotImplementedError(
-                    "`scheduler` must implement `_get_closed_form_lr()` method"
-                )
+            assert warmup_method in ["constant", "linear", "exp"], (
+                f"'{warmup_method}' is not a supported type for warmup, "
+                "valid types are 'constant', 'linear' or 'exp'"
+            )
+            assert callable(
+                getattr(scheduler, "_get_closed_form_lr", None)
+            ), "`scheduler` must implement `_get_closed_form_lr()` method"
             assert warmup_iters > 0, "'warmup_iters' must be a positive integer"
             assert 0 < warmup_factor <= 1.0, "'warmup_ratio' must be in range (0,1]"
 
