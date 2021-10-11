@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from .checkpoint import Checkpointer
-from .hooks import HookBase
+from .hooks import CheckpointerHook, HookBase, TensorboardWriterHook, TerminalWriterHook, TimerHook
 from .lr_scheduler import LRWarmupScheduler
 from .metric_storage import MetricStorage
 
@@ -43,6 +43,9 @@ class Trainer:
         data_loader: torch.utils.data.DataLoader,
         max_epochs: int,
         work_dir: str = "work_dir",
+        max_num_checkpoints: int = None,
+        checkpoint_period: int = 1,
+        log_period: int = 50,
         warmup_method: Optional[str] = None,
         warmup_iters: int = 1000,
         warmup_factor: float = 0.001,
@@ -72,6 +75,11 @@ class Trainer:
 
         self._hooks: List[HookBase] = []
         self._data_iter = iter(data_loader)
+        self._max_num_checkpoints = max_num_checkpoints
+        self._checkpoint_period = checkpoint_period
+        self._log_period = log_period
+
+        self.register_hooks(self._build_default_hooks())
 
     def _get_checkpointable_hooks(self) -> Dict[str, HookBase]:
         checkpointable_hooks = {}
@@ -151,7 +159,7 @@ class Trainer:
         self.lr_scheduler.step()
 
         self.metric_storage.update(
-            self.iter, total_loss=losses, data_time=data_time, learning_rate=self.learning_rate
+            self.iter, total_loss=losses, data_time=data_time, lr=self.learning_rate
         )
 
     def _train_one_epoch(self) -> None:
@@ -184,3 +192,11 @@ class Trainer:
         """
         extra_data = self.checkpointer.load(path, which_to_load)
         self.start_epoch = extra_data["epoch"] + 1
+
+    def _build_default_hooks(self) -> List[HookBase]:
+        return [
+            TimerHook(),
+            CheckpointerHook(self.checkpointer, self._checkpoint_period, self._max_num_checkpoints),
+            TerminalWriterHook(self._log_period),
+            TensorboardWriterHook(self._log_period),
+        ]

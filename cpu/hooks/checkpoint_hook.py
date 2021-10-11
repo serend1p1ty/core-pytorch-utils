@@ -21,27 +21,26 @@ class CheckpointerHook(HookBase):
             max_to_keep (int): Maximum number of most current checkpoints to keep,
                 previous checkpoints will be deleted.
         """
-        self.checkpointer = checkpointer
-        self.period = period
+        self._checkpointer = checkpointer
+        self._period = period
         if max_to_keep is not None:
             assert max_to_keep > 0
-        self.max_to_keep = max_to_keep
+        self._max_to_keep = max_to_keep
 
-        self.recent_checkpoints: List[str] = []
-        self.max_epochs = self.trainer.max_epochs
+        self._recent_checkpoints: List[str] = []
 
     def after_epoch(self) -> None:
-        epoch = self.trainer.epoch  # ranged in [0, max_epochs - 1]
-        if (epoch + 1) % self.period == 0 or epoch == self.max_epochs - 1:
+        if self.every_n_epochs(self._period) or self.is_last_epoch():
+            epoch = self.trainer.epoch  # ranged in [0, max_epochs - 1]
             checkpoint_name = f"epoch_{epoch}.pth"
-            self.checkpointer.save(checkpoint_name, epoch=epoch)
+            self._checkpointer.save(checkpoint_name, epoch=epoch)
 
-            if self.max_to_keep is not None:
-                self.recent_checkpoints.append(checkpoint_name)
-                if len(self.recent_checkpoints) > self.max_to_keep:
+            if self._max_to_keep is not None:
+                self._recent_checkpoints.append(checkpoint_name)
+                if len(self._recent_checkpoints) > self._max_to_keep:
                     # delete the oldest checkpointer
-                    file_name = self.recent_checkpoints.pop(0)
-                    file_path = self.checkpointer.get_path(file_name)
+                    file_name = self._recent_checkpoints.pop(0)
+                    file_path = self._checkpointer.get_path(file_name)
                     if os.path.exists(file_path):
                         os.remove(file_path)
 
