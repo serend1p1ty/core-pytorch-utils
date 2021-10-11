@@ -75,7 +75,7 @@ def setup_logger(
             log file. If ends with ``.txt`` or ``.log``, assumed to be a file name. Otherwise, logs
             will be saved to ``output/log.txt``. Defaults to None.
         log_level (int, optional): Verbosity level of the logger. Defaults to ``logging.DEBUG``.
-        distributed_rank (int, optional): Process rank in the distributed training. Defaults to 0.
+        rank (int, optional): Process rank in the distributed training. Defaults to 0.
         color (bool, optional): If True, color the output. Defaults to True.
 
     Returns:

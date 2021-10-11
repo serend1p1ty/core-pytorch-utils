@@ -86,7 +86,7 @@ class TerminalWriterHook(HookBase):
         ]
 
         process_string = (
-            f"Epoch: [{self.trainer.epoch}][{self.trainer.iter}/{len(self.trainer.data_loader)}]"
+            f"Epoch: [{self.trainer.epoch}][{self.trainer.iter}/{self.trainer.epoch_len}]"
         )
 
         logger.info(

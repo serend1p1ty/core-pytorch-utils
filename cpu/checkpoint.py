@@ -75,8 +75,8 @@ class Checkpointer:
 
         Args:
             path (str): Path to the checkpoint. If empty, will not load anything.
-            which_to_load (List[str]): List of checkpointable names to load. If not
-                specified (None), will load all possible checkpointables.
+            which_to_load (List[str]): List of checkpointable names to load.
+                If None, will load all possible checkpointables. Defaults to None.
 
         Returns:
             dict: Extra data loaded from the checkpoint that has not been processed.
@@ -111,25 +111,3 @@ class Checkpointer:
 
         # return unprocessed checkpoint data
         return checkpoint
-
-    # def resume_or_load(self, checkpoint_path: str, resume: bool = True) -> Dict[str, Any]:
-    #     """Resume checkpoint for training or load model weights for inference.
-
-    #     If ``resume`` is True, this method attempts to resume from the lastest
-    #     checkpoint, if exists. Otherwise, load checkpoint from the given path.
-    #     This is useful when restarting an interrupted training job.
-
-    #     Args:
-    #         checkpoint_path (str): Path to the checkpoint.
-    #         resume (bool): If True, resume from the lastest checkpoint if it exists
-    #             and load all the checkpointables. Otherwise only load the model
-    #             without loading any other checkpointables (mainly for inference).
-
-    #     Returns:
-    #         dict: Same as :meth:`load`.
-    #     """
-    #     latest_checkpoint = os.path.join(self.save_dir, "latest.pth")
-    #     if resume and os.path.exists(latest_checkpoint):
-    #         return self.load(latest_checkpoint)
-    #     else:
-    #         return self.load(checkpoint_path, which_to_load=["model"])
