@@ -101,12 +101,12 @@ class LRWarmupScheduler(_LRScheduler):
             return self.warmup_factor ** (1 - alpha)
 
     def get_lr(self) -> float:
-        warmup_fator = self._get_warmup_factor()
+        warmup_factor = self._get_warmup_factor()
         if self._reach_epoch_end():
             # `self.scheduler.last_epoch` is really the last epoch
             self.scheduler.last_epoch += 1
             self.regular_lrs = self.scheduler._get_closed_form_lr()
-        return [warmup_fator * lr for lr in self.regular_lrs]
+        return [warmup_factor * lr for lr in self.regular_lrs]
 
     def state_dict(self):
         state = {
