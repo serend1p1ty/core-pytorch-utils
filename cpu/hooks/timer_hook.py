@@ -17,8 +17,8 @@ class TimerHook(HookBase):
     """
 
     def __init__(self) -> None:
-        self._train_start_time: float = time.perf_counter()
-        self._iter_start_time: float = time.perf_counter()
+        self._train_start_time: float
+        self._iter_start_time: float
         self._total_iter_time: float = 0.0
 
     def before_train(self):
@@ -28,7 +28,7 @@ class TimerHook(HookBase):
         total_train_time = time.perf_counter() - self._train_start_time
         total_hook_time = total_train_time - self._total_iter_time
 
-        assert self.trainer.iter == self.trainer.max_iters
+        assert self.trainer.iter == self.trainer.max_iters - 1
         num_iter = self.trainer.iter - self.trainer.start_iter
 
         logger.info(
@@ -50,6 +50,6 @@ class TimerHook(HookBase):
         self._iter_start_time = time.perf_counter()
 
     def after_iter(self):
-        iter_time = time.perf_counter - self._iter_start_time
+        iter_time = time.perf_counter() - self._iter_start_time
         self._total_iter_time += iter_time
-        self.trainer.metric_storage.update(self.trainer.iter, iteration_time=iter_time)
+        self.storage.update(self.trainer.iter, iter_time=iter_time)

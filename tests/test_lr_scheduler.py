@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR, StepLR
 
 from cpu.lr_scheduler import LRWarmupScheduler
 
@@ -55,6 +55,20 @@ def test_multistep():
 
     optimizer = torch.optim.SGD([param], lr=5.0)
     scheduler = MultiStepLR(optimizer, milestones=[10, 15, 20], gamma=0.1)
+    warmup_scheduler = LRWarmupScheduler(scheduler=scheduler, epoch_len=3)
+    lrs2 = get_lrs2(30, 3, optimizer, warmup_scheduler)
+
+    assert np.allclose(lrs1, lrs2)
+
+
+def test_step():
+    param = nn.Parameter(torch.zeros(0))
+    optimizer = torch.optim.SGD([param], lr=5.0)
+    scheduler = StepLR(optimizer, step_size=3, gamma=0.1)
+    lrs1 = get_lrs1(30, 3, optimizer, scheduler)
+
+    optimizer = torch.optim.SGD([param], lr=5.0)
+    scheduler = StepLR(optimizer, step_size=3, gamma=0.1)
     warmup_scheduler = LRWarmupScheduler(scheduler=scheduler, epoch_len=3)
     lrs2 = get_lrs2(30, 3, optimizer, warmup_scheduler)
 

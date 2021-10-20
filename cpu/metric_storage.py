@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -107,3 +107,9 @@ class MetricStorage:
             key: smoothed_value.median if self._smooth[key] else smoothed_value.latest
             for key, smoothed_value in self._history.items()
         }
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {key: value for key, value in self.__dict__.items()}
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        self.__dict__.update(state_dict)

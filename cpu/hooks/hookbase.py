@@ -1,3 +1,6 @@
+from ..metric_storage import MetricStorage
+
+
 class HookBase:
     """Base class for hooks.
 
@@ -60,11 +63,21 @@ class HookBase:
         pass
 
     @property
+    def storage(self) -> MetricStorage:
+        """The abbreviation of ``self.trainer.metric_storage``."""
+        return self.trainer.metric_storage
+
+    @property
     def checkpointable(self) -> bool:
         """If a hook has :meth:`state_dict` method, it is checkpointable.
         Its state will be saved into checkpoint.
         """
-        return callable(getattr(self, "state_dict"))
+        return callable(getattr(self, "state_dict", None))
+
+    @property
+    def class_name(self) -> bool:
+        """Return the class name of the hook."""
+        return self.__class__.__name__
 
     # belows are helper functions that are often used in hook
     def every_n_epochs(self, n: int) -> bool:
@@ -73,8 +86,14 @@ class HookBase:
     def every_n_iters(self, n: int) -> bool:
         return (self.trainer.iter + 1) % n == 0
 
+    def every_n_inner_iters(self, n: int) -> bool:
+        return (self.trainer.inner_iter + 1) % n == 0
+
     def is_last_epoch(self) -> bool:
         return self.trainer.epoch == self.trainer.max_epochs - 1
 
     def is_last_iter(self) -> bool:
         return self.trainer.iter == self.trainer.max_iters - 1
+
+    def is_last_inner_iter(self) -> bool:
+        return self.trainer.inner_iter == self.trainer.epoch_len - 1

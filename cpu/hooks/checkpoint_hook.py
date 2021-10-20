@@ -33,7 +33,7 @@ class CheckpointerHook(HookBase):
         if self.every_n_epochs(self._period) or self.is_last_epoch():
             epoch = self.trainer.epoch  # ranged in [0, max_epochs - 1]
             checkpoint_name = f"epoch_{epoch}.pth"
-            self._checkpointer.save(checkpoint_name, epoch=epoch)
+            self._checkpointer.save(checkpoint_name)
 
             if self._max_to_keep is not None:
                 self._recent_checkpoints.append(checkpoint_name)
@@ -45,4 +45,11 @@ class CheckpointerHook(HookBase):
                         os.remove(file_path)
 
     def state_dict(self) -> Dict[str, Any]:
-        return {key: value for key, value in self.__dict__.items() if key != "checkpointer"}
+        return {
+            key: value
+            for key, value in self.__dict__.items()
+            if key != "_checkpointer" and key != "trainer"
+        }
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        self.__dict__.update(state_dict)
