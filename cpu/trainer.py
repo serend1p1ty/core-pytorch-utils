@@ -11,7 +11,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from .checkpoint import Checkpointer
-from .hooks import CheckpointerHook, HookBase, TensorboardWriterHook, TerminalWriterHook, TimerHook
+from .hooks import CheckpointerHook, HookBase, TensorboardWriterHook, TerminalWriterHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .metric_storage import MetricStorage
@@ -133,10 +133,9 @@ class Trainer:
 
     def _build_default_hooks(self) -> List[HookBase]:
         return [
-            TimerHook(),
-            CheckpointerHook(self.checkpointer, self._checkpoint_period, self._max_num_checkpoints),
             TerminalWriterHook(self._log_period),
             TensorboardWriterHook(self._log_period, log_dir=os.path.join(self.work_dir, "tb_logs")),
+            CheckpointerHook(self.checkpointer, self._checkpoint_period, self._max_num_checkpoints),
         ]
 
     @property

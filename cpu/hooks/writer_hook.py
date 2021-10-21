@@ -36,7 +36,14 @@ class TensorboardWriterHook(HookBase):
 
 
 class TerminalWriterHook(HookBase):
-    """Write all metrics to the terminal."""
+    """Write all metrics to the terminal.
+
+    The hook tracks the time spent of each iteration and the whole training process.
+    It regards the time between :meth:`before_iter` and :meth:`after_iter` methods
+    as iteration time. Under the convention that :meth:`before_iter` of all hooks should
+    only take negligible amount of time, the :class:`TerminalWriterHook` hook should be placed
+    at the beginning of the list of hooks to obtain accurate timing.
+    """
 
     def __init__(self, period: int = 20) -> None:
         """
@@ -44,32 +51,49 @@ class TerminalWriterHook(HookBase):
             period (int): The period to write metrics.
         """
         self._period = period
-        self._last_write = None  # (step, time) of last call to write(). Used to compute ETA.
+        self._train_start_time: float
+        self._iter_start_time: float
+        self._total_iter_time: float = 0.0
+
+    def before_train(self):
+        self._train_start_time = time.perf_counter()
+
+    def after_train(self):
+        total_train_time = time.perf_counter() - self._train_start_time
+        total_hook_time = total_train_time - self._total_iter_time
+
+        assert self.trainer.iter == self.trainer.max_iters - 1
+        num_iter = self.trainer.iter - self.trainer.start_iter
+
+        logger.info(
+            "Overall training speed: {} iterations in {} ({:.4f} s / it)".format(
+                num_iter,
+                str(datetime.timedelta(seconds=int(self._total_iter_time))),
+                self._total_iter_time / num_iter,
+            )
+        )
+
+        logger.info(
+            "Total training time: {} ({} on hooks)".format(
+                str(datetime.timedelta(seconds=int(total_train_time))),
+                str(datetime.timedelta(seconds=int(total_hook_time))),
+            )
+        )
+
+    def before_iter(self):
+        self._iter_start_time = time.perf_counter()
 
     def _get_eta(self) -> str:
         iter = self.trainer.iter
         max_iters = self.trainer.max_iters
-        avg_iter_time = self.storage.global_avg.get("iter_time", None)
-
-        if avg_iter_time is not None:
-            # "iter_time" does not exist when user didn't register `TimerHook`
-            eta_seconds = avg_iter_time[1] * (max_iters - iter - 1)
-            return str(datetime.timedelta(seconds=int(eta_seconds)))
-        else:
-            # estimate iteration time on our own - more noisy
-            eta_string = None
-            if self._last_write is not None:
-                estimated_iter_time = (time.perf_counter() - self._last_write[1]) / (
-                    iter - self._last_write[0]
-                )
-                eta_seconds = estimated_iter_time * (max_iters - iter - 1)
-                eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-            self._last_write = (iter, time.perf_counter())
-            return eta_string
+        avg_iter_time = self.storage.global_avg["iter_time"][1]
+        eta_seconds = avg_iter_time * (max_iters - iter - 1)
+        return str(datetime.timedelta(seconds=int(eta_seconds)))
 
     def write(self) -> None:
-        data_time = self.storage.values_maybe_smooth["data_time"]
-        iter_time = self.storage.global_avg.get("iter_time", None)
+        # "data_time" may does not exist when user overwrites `self.trainer.train_one_iter()`
+        data_time = self.storage.values_maybe_smooth.get("data_time", None)
+        iter_time = self.storage.global_avg["iter_time"]
         lr = self.storage.values_maybe_smooth["lr"]
         eta_string = self._get_eta()
 
@@ -89,17 +113,21 @@ class TerminalWriterHook(HookBase):
         )
 
         logger.info(
-            "{process}  {eta}{losses}  {iter_time}{data_time}lr: {lr}  {memory}".format(
+            "{process}  {eta}  {losses}  {iter_time}  {data_time}{lr}  {memory}".format(
                 process=process_string,
-                eta=f"ETA: {eta_string}  " if eta_string else "",
+                eta=f"ETA: {eta_string}",
                 losses="  ".join(loss_strings),
-                iter_time=f"iter_time: {iter_time[1]:.4f}  " if iter_time is not None else "",
+                iter_time=f"iter_time: {iter_time[1]:.4f}",
                 data_time=f"data_time: {data_time[1]:.4f}  " if data_time is not None else "",
-                lr=f"{lr[1]:.5g}",
+                lr=f"lr: {lr[1]:.5g}",
                 memory=f"max_mem: {max_mem_mb:.0f}M" if max_mem_mb is not None else "",
             )
         )
 
     def after_iter(self) -> None:
+        iter_time = time.perf_counter() - self._iter_start_time
+        self._total_iter_time += iter_time
+        self.storage.update(self.trainer.iter, iter_time=iter_time)
+
         if self.every_n_inner_iters(self._period):
             self.write()
