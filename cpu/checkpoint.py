@@ -44,11 +44,11 @@ class Checkpointer:
             os.makedirs(save_dir, exist_ok=True)
 
     def get_path(self, checkpoint_name: str) -> str:
-        """Return the path of the given checkpoint name."""
+        """Returns the path of the given checkpoint name."""
         return os.path.join(self.save_dir, checkpoint_name)
 
     def save(self, file_name: str, **extra_data: Dict[str, Any]) -> None:
-        """Dump checkpointables to a file.
+        """Dumps checkpointables to a file.
 
         Args:
             filename (str): The name of the file to save.
@@ -70,11 +70,18 @@ class Checkpointer:
         dst_file = self.get_path("latest.pth")
         symlink(file_path, dst_file)
 
-    def load(self, path: str, which_to_load: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Load from the given checkpoint.
+    def load(
+        self,
+        path: str = "",
+        checkpoint: Dict[str, Any] = None,
+        which_to_load: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Loads the given checkpoint.
 
         Args:
+            checkpoint (Dict[str, Any]): The checkpoint to load.
             path (str): Path to the checkpoint. If empty, will not load anything.
+                `checkpoint` and `path` can only be specified one.
             which_to_load (List[str]): List of checkpointable names to load.
                 If None, will load all possible checkpointables. Defaults to None.
 
@@ -82,11 +89,15 @@ class Checkpointer:
             dict: Extra data loaded from the checkpoint that has not been processed.
                 For example, those saved with :meth:`.save(**extra_data)`.
         """
-        if not os.path.isfile(path):
-            logger.warning(f"Checkpoint {path} not found! Initializing model from scratch.")
-            return {}
-        logger.info(f"Loading checkpoint from {path} ...")
-        checkpoint = torch.load(path, map_location="cpu")
+        assert checkpoint or path, "Either `checkpoint` or `path` must be specified."
+        assert not (checkpoint and path), "`checkpoint` and `path` can only be specified one."
+
+        if path:
+            if not os.path.isfile(path):
+                logger.warning(f"Checkpoint {path} not found! Initializing model from scratch.")
+                return {}
+            logger.info(f"Loading checkpoint from {path} ...")
+            checkpoint = torch.load(path, map_location="cpu")
 
         for key in self.checkpointables if which_to_load is None else which_to_load:
             assert key in checkpoint, f"Can not find key '{key}' in checkpoint."
