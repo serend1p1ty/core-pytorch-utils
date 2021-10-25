@@ -4,12 +4,14 @@ import re
 import tempfile
 import time
 
+import mock
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
 import cpu.logger as logger
 from cpu import Trainer
+from cpu.hooks import EvalHook
 
 
 class _SimpleModel(nn.Module):
@@ -168,3 +170,20 @@ def test_checkpoint_resume():
             # the training smoothed losses should be the same.
             for loss1, loss2 in zip(epoch_3_smoothed_losses, epoch_3_smoothed_losses_resume):
                 assert loss1 == loss2
+
+
+def test_eval_hook():
+    with tempfile.TemporaryDirectory() as dir:
+        model = _SimpleModel()
+        optimizer = torch.optim.SGD(model.parameters(), 0.1)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2)
+        data_loader = DataLoader(_SimpleDataset())
+
+        for total_epochs, period, eval_count in [(30, 15, 2), (31, 15, 3), (20, 0, 1)]:
+            test_func = mock.Mock(return_value={"metric": 3.0})
+            trainer = Trainer(
+                model, optimizer, lr_scheduler, data_loader, max_epochs=total_epochs, work_dir=dir
+            )
+            trainer.register_hooks([EvalHook(period, test_func)])
+            trainer.train()
+            assert test_func.call_count == eval_count
