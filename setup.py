@@ -1,6 +1,6 @@
 import setuptools
 
-INSTALL_REQUIREMENTS = ["numpy", "opencv-python", "ffmpeg-python"]
+INSTALL_REQUIREMENTS = ["termcolor"]
 
 setuptools.setup(
     name="cpu",
