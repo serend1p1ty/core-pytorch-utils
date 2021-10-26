@@ -44,11 +44,11 @@ class Checkpointer:
             os.makedirs(save_dir, exist_ok=True)
 
     def get_path(self, checkpoint_name: str) -> str:
-        """Returns the path of the given checkpoint name."""
+        """Return the path of the given checkpoint name."""
         return os.path.join(self.save_dir, checkpoint_name)
 
     def save(self, file_name: str, **extra_data: Dict[str, Any]) -> None:
-        """Dumps checkpointables to a file.
+        """Dump checkpointables to a file.
 
         Args:
             filename (str): The name of the file to save.
@@ -76,7 +76,7 @@ class Checkpointer:
         checkpoint: Dict[str, Any] = None,
         which_to_load: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Loads the given checkpoint.
+        """Load the given checkpoint.
 
         Args:
             checkpoint (Dict[str, Any]): The checkpoint to load.
