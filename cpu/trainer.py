@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
 from .checkpoint import Checkpointer
@@ -65,6 +66,7 @@ class Trainer:
         max_num_checkpoints: int = None,
         checkpoint_period: int = 1,
         log_period: int = 50,
+        clip_grad_norm: float = 0.0,
         warmup_method: Optional[str] = None,
         warmup_iters: int = 1000,
         warmup_factor: float = 0.001,
@@ -77,6 +79,7 @@ class Trainer:
         )
         self.data_loader = data_loader
         self.work_dir = work_dir
+        self.clip_grad_norm = clip_grad_norm
         self.metric_storage = MetricStorage()
         self.checkpointer = Checkpointer(
             os.path.join(work_dir, "checkpoints"),
@@ -208,6 +211,8 @@ class Trainer:
         ##########################
         self.optimizer.zero_grad()
         losses.backward()
+        if self.clip_grad_norm > 0:
+            clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
 
         ##############################
         # 4. Update model parameters #
