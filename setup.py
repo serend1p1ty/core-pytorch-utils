@@ -1,6 +1,6 @@
 import setuptools
 
-INSTALL_REQUIREMENTS = ["termcolor"]
+INSTALL_REQUIREMENTS = ["termcolor", "opencv-python"]
 
 setuptools.setup(
     name="cpu",
