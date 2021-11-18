@@ -22,14 +22,20 @@ class TensorboardWriterHook(HookBase):
         """
         self._period = period
         self._writer = SummaryWriter(log_dir, **kwargs)
+        self._last_write = {}
 
-    def write(self):
+    def write(self) -> None:
         for key, (iter, value) in self.storage.values_maybe_smooth.items():
-            self._writer.add_scalar(key, value, iter)
+            if key not in self._last_write or iter > self._last_write[key]:
+                self._writer.add_scalar(key, value, iter)
+                self._last_write[key] = iter
 
     def after_iter(self) -> None:
         if self.every_n_inner_iters(self._period):
             self.write()
+
+    def after_epoch(self) -> None:
+        self.write()
 
     def after_train(self) -> None:
         self._writer.close()
@@ -55,10 +61,10 @@ class TerminalWriterHook(HookBase):
         self._iter_start_time: float
         self._total_iter_time: float = 0.0
 
-    def before_train(self):
+    def before_train(self) -> None:
         self._train_start_time = time.perf_counter()
 
-    def after_train(self):
+    def after_train(self) -> None:
         total_train_time = time.perf_counter() - self._train_start_time
         total_hook_time = total_train_time - self._total_iter_time
 
@@ -80,7 +86,7 @@ class TerminalWriterHook(HookBase):
             )
         )
 
-    def before_iter(self):
+    def before_iter(self) -> None:
         self._iter_start_time = time.perf_counter()
 
     def _get_eta(self) -> str:

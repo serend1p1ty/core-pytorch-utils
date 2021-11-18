@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import logging
 import os
 import os.path as osp
@@ -7,12 +8,14 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from typing import Optional
 
 import cv2
 import numpy as np
 import torch
 from tabulate import tabulate
 from torch.utils.cpp_extension import CUDA_HOME
+from yacs.config import CfgNode
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +25,9 @@ __all__ = [
     "set_random_seed",
     "collect_env",
     "symlink",
-    "default_argument_parser",
+    "default_argparser",
+    "save_config",
+    "merge_from_args",
 ]
 
 
@@ -141,24 +146,34 @@ def highlight(code: str, filename: str) -> str:
     return code
 
 
-def set_random_seed(seed: int, deterministic: bool = False) -> None:
+def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> None:
     """Set random seed.
 
     Args:
-        seed (int): Seed to be used. Set to negative to randomize everything.
-        deterministic (bool, optional): Whether to set the deterministic option for
-            CUDNN backend. Defaults to False.
+        seed (int): If None or negative, will use a generated seed.
+        deterministic (bool, optional): If True, CUDA will select the same and deterministic
+            convolution algorithm each time an application is run.
     """
-    if seed >= 0:
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-    else:
-        logger.warning("Fail to set random seed, as you call this function with negative seed.")
+    if seed is None or seed < 0:
+        seed = (
+            os.getpid()
+            + int(datetime.now().strftime("%S%f"))
+            + int.from_bytes(os.urandom(2), "big")
+        )
+        logger.info(f"Using a generated random seed {seed}")
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+
     if deterministic:
-        torch.backends.cudnn.deterministic = True
+        # While disabling CUDA convolution benchmarking ensures that CUDA
+        # selects the same convolution algorithm each time an application
+        # is run, that algorithm itself may be nondeterministic, unless
+        # `torch.backends.cudnn.deterministic = True` is set.
         torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
 
 
 def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
@@ -174,23 +189,69 @@ def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
     os.symlink(src, dst, **kwargs)
 
 
-def default_argument_parser():
+def default_argparser():
     """Create a parser with some common arguments.
 
     Returns:
         argparse.ArgumentParser
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config-file", default="", help="Path to config file.")
-    parser.add_argument("--resume", default="", help="Resume from the given checkpoint.")
+    parser.add_argument("--config-file", default="", help="Path of the configuration file.")
+    parser.add_argument("--resume", action="store_true", help="Whether to resume from a checkpoint")
     parser.add_argument("--eval-only", action="store_true", help="Perform evaluation only.")
+    parser.add_argument(
+        "--checkpoint", default="", help="Path of the checkpoint to resume or evaluate."
+    )
     parser.add_argument(
         "opts",
         help=(
-            "Modify config options at the end of the command,"
+            "Modify config options at the end of the command, "
             "using space-separated 'PATH.KEY VALUE' pairs."
         ),
         default=None,
         nargs=argparse.REMAINDER,
     )
     return parser
+
+
+def save_config(cfg: CfgNode, output: str):
+    """Save :class:`yacs.config.CfgNode` to a ``.yaml`` file.
+
+    Args:
+        cfg (CfgNode): The config to be saved.
+        output (str): A file name or a directory. If ends with ``.yaml``, assumed to
+            be a file name. Otherwise, the config will be saved to ``output/config.yaml``.
+    """
+    if output.endswith(".yaml"):
+        filename = output
+    else:
+        filename = osp.join(output, "config.yaml")
+    os.makedirs(osp.dirname(osp.abspath(filename)), exist_ok=True)
+
+    with open(filename, "w") as f:
+        f.write(cfg.dump())
+    logger.info(f"Full config is saved to {filename}")
+
+
+def merge_from_args(cfg: CfgNode, args):
+    """Merge config from the arguments parsed by default parser.
+
+    Args:
+        cfg (CfgNode): The config to be merged.
+        args ([type]): Default argument parser returned by :meth:`default_argparser`.
+
+    Returns:
+        CfgNode: Merged config.
+    """
+    assert hasattr(args, "config_file") and hasattr(args, "opts")
+    if args.config_file:
+        logger.info(
+            "Contents of args.config_file={}:\n{}".format(
+                args.config_file, highlight(open(args.config_file, "r").read(), args.config_file)
+            )
+        )
+        cfg.merge_from_file(args.config_file)
+    cfg.merge_from_list(args.opts)
+    cfg.freeze()
+    logger.info(f"Running with full config:\n{highlight(cfg.dump(), '.yaml')}")
+    return cfg

@@ -1,5 +1,6 @@
 import logging
 import os
+import os.path as osp
 import time
 import weakref
 from typing import Any, Dict, List, Optional
@@ -8,14 +9,16 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.cuda.amp import GradScaler, autocast
+from torch.nn.parallel import DataParallel, DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
-from .checkpoint import Checkpointer
 from .hooks import CheckpointerHook, HookBase, TensorboardWriterHook, TerminalWriterHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .metric_storage import MetricStorage
+from .misc import symlink
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +70,7 @@ class Trainer:
         checkpoint_period: int = 1,
         log_period: int = 50,
         clip_grad_norm: float = 0.0,
+        enable_amp=False,
         warmup_method: Optional[str] = None,
         warmup_iters: int = 1000,
         warmup_factor: float = 0.001,
@@ -79,17 +83,7 @@ class Trainer:
         )
         self.data_loader = data_loader
         self.work_dir = work_dir
-        self.clip_grad_norm = clip_grad_norm
         self.metric_storage = MetricStorage()
-        self.checkpointer = Checkpointer(
-            os.path.join(work_dir, "checkpoints"),
-            model=self.model,
-            optimizer=self.optimizer,
-            lr_scheduler=self.lr_scheduler,
-            # We treat trainer as a checkpointable object.
-            # Its state dict contains: current epoch, hooks and metric storage.
-            trainer=self,
-        )
 
         # counters
         self.inner_iter: int  # [0, epoch_len - 1]
@@ -102,47 +96,17 @@ class Trainer:
         self._max_num_checkpoints = max_num_checkpoints
         self._checkpoint_period = checkpoint_period
         self._log_period = log_period
+        self._clip_grad_norm = clip_grad_norm
+        self._enable_amp = enable_amp
+        if enable_amp:
+            logger.info("Automatic Mixed Precision (AMP) training is on.")
+            self._scaler = GradScaler()
 
-        self.register_hooks(self._build_default_hooks())
-        # setup the root logger of the `cpu` library to show
-        # the log messages generated from this library
-        setup_logger("cpu", output=work_dir)
-        logger.info(f"Registered default hooks: {self.get_registered_hook_names()}")
-
-    def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
-        """Register hooks to the trainer.
-
-        The hooks are executed in the order they are registered.
-
-        Args:
-            hooks (List[Optional[HookBase]]): List of hooks
-        """
-        hooks = [h for h in hooks if h is not None]
-        for h in hooks:
-            assert isinstance(h, HookBase)
-            # To avoid circular reference, hooks and trainer cannot own each other. This normally
-            # does not matter, but will cause memory leak if the involved objects contain __del__.
-            # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
-            h.trainer = weakref.proxy(self)
-        self._hooks.extend(hooks)
-
-    def get_registered_hook_names(self) -> List[str]:
-        """Return the names of all registered hooks."""
-        return [h.__class__.__name__ for h in self._hooks]
-
-    def _call_hooks(self, stage: str) -> None:
-        for h in self._hooks:
-            getattr(h, stage)()
-
-    def _build_default_hooks(self) -> List[HookBase]:
-        return [
-            TerminalWriterHook(self._log_period),
-            TensorboardWriterHook(self._log_period, log_dir=os.path.join(self.work_dir, "tb_logs")),
-            CheckpointerHook(self.checkpointer, self._checkpoint_period, self._max_num_checkpoints),
-        ]
+        # register default hooks and setup logger
+        self._default_setup()
 
     @property
-    def learning_rate(self) -> float:
+    def lr(self) -> float:
         return self.optimizer.param_groups[0]["lr"]
 
     @property
@@ -161,6 +125,98 @@ class Trainer:
     @property
     def start_iter(self) -> int:
         return self.start_epoch * self.epoch_len
+
+    @property
+    def ckpt_dir(self) -> str:
+        return osp.join(self.work_dir, "checkpoints")
+
+    @property
+    def tb_dir(self) -> str:
+        return osp.join(self.work_dir, "tb_logs")
+
+    @property
+    def log_file(self) -> str:
+        return osp.join(self.work_dir, "log.txt")
+
+    @property
+    def model_or_module(self) -> nn.Module:
+        if isinstance(self.model, (DistributedDataParallel, DataParallel)):
+            return self.model.module
+        return self.model
+
+    @property
+    def registered_hook_names(self) -> List[str]:
+        """The names of all registered hooks."""
+        return [h.__class__.__name__ for h in self._hooks]
+
+    def _default_setup(self):
+        self.register_hooks(self._build_default_hooks())
+        logger.info(f"Registered default hooks: {self.registered_hook_names}")
+
+        # setup the root logger of the `cpu` library to show
+        # the log messages generated from this library
+        setup_logger("cpu", output=self.log_file)
+
+        os.makedirs(self.work_dir, exist_ok=True)
+        os.makedirs(self.ckpt_dir, exist_ok=True)
+        logger.info(
+            f"Work directory: '{self.work_dir}'. "
+            f"Checkpoint directory: '{self.ckpt_dir}'. "
+            f"Tensorboard directory: '{self.tb_dir}'. "
+            f"Log file: '{self.log_file}'."
+        )
+
+    def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
+        """Register hooks to the trainer.
+
+        The hooks are executed in the order they are registered.
+
+        Args:
+            hooks (List[Optional[HookBase]]): List of hooks
+        """
+        hooks = [h for h in hooks if h is not None]
+        for h in hooks:
+            assert isinstance(h, HookBase)
+            # To avoid circular reference, hooks and trainer cannot own each other. This normally
+            # does not matter, but will cause memory leak if the involved objects contain __del__.
+            # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
+            h.trainer = weakref.proxy(self)
+            # keep `TensorboardWriterHook` is the last hook
+            if self._hooks and isinstance(self._hooks[-1], TensorboardWriterHook):
+                self._hooks.insert(len(self._hooks) - 1, h)
+            else:
+                self._hooks.append(h)
+
+    def _call_hooks(self, stage: str) -> None:
+        for h in self._hooks:
+            getattr(h, stage)()
+
+    def _build_default_hooks(self) -> List[HookBase]:
+        return [
+            CheckpointerHook(self._checkpoint_period, self._max_num_checkpoints),
+            TerminalWriterHook(self._log_period),
+            TensorboardWriterHook(self._log_period, log_dir=self.tb_dir),
+        ]
+
+    def _write_metrics(self, loss_dict: Dict[str, torch.Tensor], data_time: float) -> None:
+        """
+        Args:
+            loss_dict (dict): Dict of scalar losses.
+            data_time (float): Time taken by the dataloader iteration.
+        """
+        self.metric_storage.update(self.iter, data_time=data_time)
+        self.metric_storage.update(self.iter, lr=self.lr, smooth=False)
+
+        loss_dict = {k: v.detach().cpu().item() for k, v in loss_dict.items()}
+        loss_value = sum(loss_dict.values())
+        if not np.isfinite(loss_value):
+            raise FloatingPointError(
+                f"Loss became infinite or NaN at epoch={self.epoch}! loss_dict = {loss_dict}."
+            )
+
+        self.metric_storage.update(self.iter, total_loss=loss_value)
+        if len(loss_dict) > 1:
+            self.metric_storage.update(self.iter, **loss_dict)
 
     def train_one_iter(self) -> None:
         """Train one iteration.
@@ -193,33 +249,40 @@ class Trainer:
         #####################
         # 2. Calculate loss #
         #####################
-        loss_dict = self.model(batch)
+        if self._enable_amp:
+            with autocast():
+                loss_dict = self.model(batch)
+        else:
+            loss_dict = self.model(batch)
         if isinstance(loss_dict, torch.Tensor):
             losses = loss_dict
             loss_dict = {"total_loss": loss_dict}
         else:
             losses = sum(loss_dict.values())
-        loss_value = losses.detach().cpu().item()
 
-        if not np.isfinite(loss_value):
-            raise FloatingPointError(
-                f"Loss became infinite or NaN at epoch={self.epoch}! loss_dict = {loss_dict}."
-            )
+        self._write_metrics(loss_dict, data_time)
 
         ##########################
         # 3. Calculate gradients #
         ##########################
         self.optimizer.zero_grad()
-        losses.backward()
-        if self.clip_grad_norm > 0:
-            clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
+        if self._enable_amp:
+            self._scaler.scale(losses).backward()
+        else:
+            losses.backward()
+        if self._clip_grad_norm > 0:
+            if self._enable_amp:
+                self._scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self._clip_grad_norm)
 
         ##############################
         # 4. Update model parameters #
         ##############################
-        self.optimizer.step()
-        self.metric_storage.update(self.iter, total_loss=loss_value, data_time=data_time)
-        self.metric_storage.update(self.iter, lr=self.learning_rate, smooth=False)
+        if self._enable_amp:
+            self._scaler.step(self.optimizer)
+            self._scaler.update()
+        else:
+            self.optimizer.step()
 
         ###########################
         # 5. Adjust learning rate #
@@ -246,60 +309,86 @@ class Trainer:
             self._call_hooks("after_epoch")
         self._call_hooks("after_train")
 
-    def resume(self, path: str, which_to_load: Optional[List[str]] = None) -> None:
-        """Resume training from given checkpoint.
+    def save_checkpoint(self, file_name: str) -> None:
+        """Dump checkpointables to a file.
 
         Args:
-            path (str): Path to the checkpoint.
-            which_to_load (Optional[List[str]]): List of checkpointable names to load.
-                If None, will load all possible checkpointables. Defaults to None.
+            filename (str): The name of the file to save.
         """
-        self.checkpointer.load(path, which_to_load)
-        self.start_epoch = self.epoch + 1
-
-    def state_dict(self) -> Dict[str, Any]:
-        """Returns the state dict of the trainer.
-
-        The state dict has these following keys:
-
-        - "epoch": The current epoch.
-        - "hooks": The state dict of the registered hooks.
-            No this field if no checkpointable hooks.
-        - "metric_storage": The state dict of ``self.metric_storage``.
-
-        Returns:
-            Dict[str, Any]
-        """
-        ret = {"epoch": self.epoch}
+        data = {
+            "epoch": self.epoch,
+            "model": self.model_or_module.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "lr_scheduler": self.lr_scheduler.state_dict(),
+            "metric_storage": self.metric_storage.state_dict(),
+        }
         hooks_state = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
         if hooks_state:
-            ret["hooks"] = hooks_state
-        ret["metric_storage"] = self.metric_storage.state_dict()
-        return ret
+            data["hooks"] = hooks_state
 
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Loads the given ``state_dict``.
+        file_path = osp.join(self.ckpt_dir, file_name)
+        logger.info(f"Saving checkpoint to {file_path}")
+        torch.save(data, file_path)
 
-        The keys in ``state_dict`` can mismatch with the hooks in the trainer.
+        # tag last checkpoint
+        dst_file = osp.join(self.ckpt_dir, "latest.pth")
+        symlink(file_name, dst_file)
+
+    def load_checkpoint(
+        self,
+        path: str = "",
+        checkpoint: Dict[str, Any] = None,
+        which_to_load: Optional[List[str]] = None,
+    ):
+        """Load the given checkpoint.
 
         Args:
-            state_dict (Dict[str, Any])
+            checkpoint (Dict[str, Any]): The checkpoint to load.
+            path (str): Path to the checkpoint. If empty, will not load anything.
+                `checkpoint` and `path` can only be specified one.
+            which_to_load (List[str]): List of checkpointable names to load.
+                If None, will load all possible checkpointables. Defaults to None.
         """
-        self.epoch = state_dict["epoch"]
-        self.metric_storage.load_state_dict(state_dict["metric_storage"])
+        assert checkpoint or path, "Either `checkpoint` or `path` must be specified."
+        assert not (checkpoint and path), "`checkpoint` and `path` can only be specified one."
 
-        hook_names = [h.class_name for h in self._hooks]
-        missing_keys = [name for name in hook_names if name not in state_dict]
-        unexpected_keys = [key for key in state_dict if key not in hook_names]
-        if not missing_keys:
+        if path:
+            logger.info(f"Loading checkpoint from {path} ...")
+            checkpoint = torch.load(path, map_location="cpu")
+
+        self.start_epoch = checkpoint["epoch"] + 1
+
+        if which_to_load is None or "optimizer" in which_to_load:
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
+        if which_to_load is None or "lr_scheduler" in which_to_load:
+            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        if which_to_load is None or "metric_storage" in which_to_load:
+            self.metric_storage.load_state_dict(checkpoint["metric_storage"])
+
+        incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
+        if incompatible.missing_keys:
+            logger.warning(
+                f"Encounter missing keys when loading model weights:\n{incompatible.missing_keys}"
+            )
+        if incompatible.unexpected_keys:
+            logger.warning(
+                "Encounter unexpected keys when loading model weights:\n"
+                f"{incompatible.unexpected_keys}"
+            )
+
+        hook_state = checkpoint.get("hooks", {})
+        hook_names = [h.class_name for h in self._hooks if h.checkpointable]
+        missing_keys = [name for name in hook_names if name not in hook_state]
+        unexpected_keys = [key for key in hook_state if key not in hook_names]
+        if missing_keys:
             logger.warning(f"Encounter missing keys when loading hook state dict:\n{missing_keys}")
-        if not unexpected_keys:
+        if unexpected_keys:
             logger.warning(
                 f"Encounter unexpected keys when loading hook state dict:\n{unexpected_keys}"
             )
 
-        for key, value in state_dict.get("hooks", {}).items():
+        for key, value in hook_state.items():
             for h in self._hooks:
-                if h.class_name == key:
+                if h.class_name == key and h.checkpointable:
                     h.load_state_dict(value)
                     break

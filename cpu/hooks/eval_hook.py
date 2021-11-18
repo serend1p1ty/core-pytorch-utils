@@ -10,9 +10,9 @@ class EvalHook(HookBase):
     def __init__(self, period, eval_func):
         """
         Args:
-            eval_period (int): The period to run ``eval_func``. Set to 0 to
+            period (int): The period to run ``eval_func``. Set to 0 to
                 not evaluate periodically (but still after the last iteration).
-            eval_function (callable): A function which takes no arguments, and
+            eval_func (callable): A function which takes no arguments, and
                 returns a dict of evaluation metrics.
         """
         self._period = period
@@ -31,7 +31,7 @@ class EvalHook(HookBase):
                         "[EvalHook] eval_function should return a dict of float. "
                         f"Got '{k}: {v}' instead."
                     ) from e
-            self.storage.update(**res, smooth=False)
+            self.storage.update(self.trainer.iter, **res, smooth=False)
 
     def after_epoch(self):
         if self.every_n_epochs(self._period) or self.is_last_epoch():
