@@ -1,21 +1,15 @@
-import argparse
 import datetime
 import logging
 import os
-import os.path as osp
 import random
-import subprocess
 import sys
 import time
 from collections import defaultdict
 from typing import Optional
 
-import cv2
 import numpy as np
 import torch
 from tabulate import tabulate
-from torch.utils.cpp_extension import CUDA_HOME
-from yacs.config import CfgNode
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +19,7 @@ __all__ = [
     "set_random_seed",
     "collect_env",
     "symlink",
-    "default_argparser",
-    "save_config",
-    "merge_from_args",
+    "create_small_table",
 ]
 
 
@@ -41,13 +33,10 @@ def collect_env() -> str:
         - Numpy: Numpy version.
         - CUDA available: Bool, indicating if CUDA is available.
         - GPU devices: Device type of each GPU.
-        - CUDA_HOME (optional): The env var ``CUDA_HOME``.
-        - NVCC (optional): NVCC version.
-        - GCC: GCC version, "n/a" if GCC is not installed.
         - PyTorch: PyTorch version.
         - PyTorch compiling details: The output of ``torch.__config__.show()``.
         - TorchVision (optional): TorchVision version.
-        - OpenCV: OpenCV version.
+        - OpenCV (optional): OpenCV version.
 
     Returns:
         str: A string describing the running environment.
@@ -67,24 +56,6 @@ def collect_env() -> str:
         for name, device_ids in devices.items():
             env_info.append(("GPU " + ",".join(device_ids), name))
 
-        env_info.append(("CUDA_HOME", CUDA_HOME))
-
-        if CUDA_HOME is not None and osp.isdir(CUDA_HOME):
-            try:
-                nvcc = osp.join(CUDA_HOME, "bin/nvcc")
-                nvcc = subprocess.check_output(f'"{nvcc}" -V | tail -n1', shell=True)
-                nvcc = nvcc.decode("utf-8").strip()
-            except subprocess.SubprocessError:
-                nvcc = "Not Available"
-            env_info.append(("NVCC", nvcc))
-
-    try:
-        gcc = subprocess.check_output("gcc --version | head -n1", shell=True)
-        gcc = gcc.decode("utf-8").strip()
-        env_info.append(("GCC", gcc))
-    except subprocess.CalledProcessError:
-        env_info.append(("GCC", "Not Available"))
-
     env_info.append(("PyTorch", torch.__version__))
 
     try:
@@ -94,7 +65,13 @@ def collect_env() -> str:
     except ModuleNotFoundError:
         pass
 
-    env_info.append(("OpenCV", cv2.__version__))
+    try:
+        import cv2
+
+        env_info.append(("OpenCV", cv2.__version__))
+    except ModuleNotFoundError:
+        pass
+
     torch_config = torch.__config__.show()
     env_str = tabulate(env_info) + "\n" + torch_config
     return env_str
@@ -189,69 +166,23 @@ def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
     os.symlink(src, dst, **kwargs)
 
 
-def default_argparser():
-    """Create a parser with some common arguments.
-
-    Returns:
-        argparse.ArgumentParser
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config-file", default="", help="Path of the configuration file.")
-    parser.add_argument("--resume", action="store_true", help="Whether to resume from a checkpoint")
-    parser.add_argument("--eval-only", action="store_true", help="Perform evaluation only.")
-    parser.add_argument(
-        "--checkpoint", default="", help="Path of the checkpoint to resume or evaluate."
-    )
-    parser.add_argument(
-        "opts",
-        help=(
-            "Modify config options at the end of the command, "
-            "using space-separated 'PATH.KEY VALUE' pairs."
-        ),
-        default=None,
-        nargs=argparse.REMAINDER,
-    )
-    return parser
-
-
-def save_config(cfg: CfgNode, output: str):
-    """Save :class:`yacs.config.CfgNode` to a ``.yaml`` file.
+def create_small_table(small_dict):
+    """Create a small table using the keys of small_dict as headers. This is only
+    suitable for small dictionaries.
 
     Args:
-        cfg (CfgNode): The config to be saved.
-        output (str): A file name or a directory. If ends with ``.yaml``, assumed to
-            be a file name. Otherwise, the config will be saved to ``output/config.yaml``.
-    """
-    if output.endswith(".yaml"):
-        filename = output
-    else:
-        filename = osp.join(output, "config.yaml")
-    os.makedirs(osp.dirname(osp.abspath(filename)), exist_ok=True)
-
-    with open(filename, "w") as f:
-        f.write(cfg.dump())
-    logger.info(f"Full config is saved to {filename}")
-
-
-def merge_from_args(cfg: CfgNode, args):
-    """Merge config from the arguments parsed by default parser.
-
-    Args:
-        cfg (CfgNode): The config to be merged.
-        args ([type]): Default argument parser returned by :meth:`default_argparser`.
+        small_dict (dict): a result dictionary of only a few items.
 
     Returns:
-        CfgNode: Merged config.
+        str: the table as a string.
     """
-    assert hasattr(args, "config_file") and hasattr(args, "opts")
-    if args.config_file:
-        logger.info(
-            "Contents of args.config_file={}:\n{}".format(
-                args.config_file, highlight(open(args.config_file, "r").read(), args.config_file)
-            )
-        )
-        cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
-    logger.info(f"Running with full config:\n{highlight(cfg.dump(), '.yaml')}")
-    return cfg
+    keys, values = tuple(zip(*small_dict.items()))
+    table = tabulate(
+        [values],
+        headers=keys,
+        tablefmt="pipe",
+        floatfmt=".3f",
+        stralign="center",
+        numalign="center",
+    )
+    return table
