@@ -178,6 +178,34 @@ def test_tensorboard_logging():
         assert len(metric1s) == 90
         assert len(metric2s) == 3
 
+    # with log_period
+    with tempfile.TemporaryDirectory() as dir:
+        trainer = _create_new_trainer(max_epochs=9, work_dir=dir, log_period=4)
+        test_func = mock.Mock(return_value={"metric2": 3.0})
+        trainer.register_hooks([EvalHook(3, test_func), SimpleHook()])
+        trainer.train()
+
+        tb_log_file = os.listdir(os.path.join(dir, "tb_logs"))
+        assert len(tb_log_file) == 1
+        tb_log_file = os.path.join(dir, "tb_logs", tb_log_file[0])
+
+        lrs = []
+        metric1s = []
+        metric2s = []
+        for event in tf.train.summary_iterator(tb_log_file):
+            for value in event.summary.value:
+                if value.tag == "lr":
+                    lrs.append(value.simple_value)
+                if value.tag == "metric1":
+                    metric1s.append(value.simple_value)
+                if value.tag == "metric2":
+                    metric2s.append(value.simple_value)
+        assert len(lrs) == 27
+        true_lrs = [0.1] * 9 + [0.01] * 9 + [0.001] * 9
+        assert sum([lrs[i] - true_lrs[i] for i in range(27)]) < 1e-7
+        assert len(metric1s) == 27
+        assert len(metric2s) == 3
+
 
 def test_checkpoint_and_resume():
     with tempfile.TemporaryDirectory() as dir1:
