@@ -6,7 +6,7 @@ import numpy as np
 
 class _SmoothedValue:
     """The class tracks a series of values and provides access to the smoothed
-    value (i.e., median) over a window or the global series average. The returned
+    value over a window or the global average of the series. The returned
     value is (iteration, value) pair.
 
     Example::
@@ -19,6 +19,11 @@ class _SmoothedValue:
     """
 
     def __init__(self, window_size: int = 20) -> None:
+        """
+        Args:
+            window_size (int, optional): The maximal number of values that can
+                be stored in the buffer. Defaults to 20.
+        """
         self._history = deque(maxlen=window_size)  # (iteration, value) pairs
         self._count: int = 0
         self._global_avg: float = 0.0
@@ -44,13 +49,18 @@ class _SmoothedValue:
         return (self.latest[0], np.median([x[1] for x in self._history]))
 
     @property
+    def avg(self) -> Tuple[int, float]:
+        """Return (the latest iteration, the average of the latest ``window_size`` values) pair."""
+        return (self.latest[0], np.mean([x[1] for x in self._history]))
+
+    @property
     def global_avg(self) -> Tuple[int, float]:
         """Return (the latest iteration, the global average) pair."""
         return (self.latest[0], self._global_avg)
 
 
 class MetricStorage:
-    """The class store the values of multiple metrics (some of them may be noisy, e.g., loss,
+    """The class stores the values of multiple metrics (some of them may be noisy, e.g., loss,
     accuracy) in training process, and provides access to the smoothed values for better logging.
 
     Example::
@@ -59,7 +69,7 @@ class MetricStorage:
         >>> metric_storage.update(iter=0, loss=0.2, accuracy=0.1, smooth=True)
         >>> metric_storage.update(iter=1, loss=0.1, accuracy=0.3, smooth=True)
         >>> metric_storage.values
-        {'loss': (1, 0.15), 'accuracy': (1, 0.2)}
+        {"loss": (1, 0.15), "accuracy": (1, 0.2)}
     """
 
     def __init__(self, window_size: int = 20) -> None:
@@ -75,11 +85,11 @@ class MetricStorage:
         """Add new scalar values of multiple metrics produced at a certain iteration.
 
         Args:
-            iter (Optional[int]): The iteration in which these values are produced.
+            iter (int or None): The iteration in which these values are produced.
                 If None, use the built-in counter starting from 0.
-            smooth (Optional[bool]): If True, return the smoothed values for these metrics when
+            smooth (bool): If True, return the smoothed values of these metrics when
                 calling :meth:`values_maybe_smooth`. Otherwise, return the latest values.
-                The same metric must have the same `smooth` in different calls to :meth:`update`.
+                The same metric must have the same ``smooth`` in different calls to :meth:`update`.
         """
         for key, value in kwargs.items():
             if key in self._smooth:
@@ -92,7 +102,7 @@ class MetricStorage:
 
     @property
     def global_avg(self) -> Dict[str, Tuple[int, float]]:
-        """Return (the latest iteration, the global average) pair of multiple metrics."""
+        """Return (the latest iteration, the global average) pairs of multiple metrics."""
         return {key: smoothed_value.global_avg for key, smoothed_value in self._history.items()}
 
     @property
@@ -101,7 +111,8 @@ class MetricStorage:
         behavior depends on the ``smooth`` when updating metrics. See docs above.
 
         Returns:
-            Dict[str, Tuple[int, float]]: Mapping from metric name to its (iteration, value) pair.
+            dict[str -> (int, float)]: Mapping from metric name to its
+                (the latest iteration, the smoothed/latest value) pair.
         """
         return {
             key: smoothed_value.median if self._smooth[key] else smoothed_value.latest
