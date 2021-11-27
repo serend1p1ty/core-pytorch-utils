@@ -2,13 +2,10 @@ import argparse
 import logging
 import os
 import os.path as osp
-from argparse import Namespace
 
 from yacs.config import CfgNode
 
-from .misc import highlight
-
-__all__ = ["ArgumentHookParser", "default_argparser", "save_config", "merge_cfg_from_args"]
+__all__ = ["ArgumentHookParser", "default_argparser", "save_config"]
 
 logger = logging.getLogger(__name__)
 
@@ -111,27 +108,3 @@ def save_config(cfg: CfgNode, output: str):
     with open(filename, "w") as f:
         f.write(cfg.dump())
     logger.info(f"Full config is saved to {filename}")
-
-
-def merge_cfg_from_args(cfg: CfgNode, args: Namespace):
-    """Merge config from the arguments parsed by default parser.
-
-    Args:
-        cfg (CfgNode): The config to be merged.
-        args (Namespace): Default argument namespace with `config_file` and `opts` fields.
-
-    Returns:
-        CfgNode: Merged config.
-    """
-    assert hasattr(args, "config_file") and hasattr(args, "opts")
-    if args.config_file:
-        logger.info(
-            "Contents of args.config_file={}:\n{}".format(
-                args.config_file, highlight(open(args.config_file, "r").read(), args.config_file)
-            )
-        )
-        cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
-    logger.info(f"Running with full config:\n{highlight(cfg.dump(), '.yaml')}")
-    return cfg
