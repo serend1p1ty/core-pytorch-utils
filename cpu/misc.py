@@ -3,9 +3,8 @@ import logging
 import os
 import random
 import sys
-import time
 from collections import defaultdict
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -13,14 +12,7 @@ from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
 
-__all__ = [
-    "get_time_str",
-    "highlight",
-    "set_random_seed",
-    "collect_env",
-    "symlink",
-    "create_small_table",
-]
+__all__ = ["set_random_seed", "collect_env", "symlink", "create_small_table"]
 
 
 def collect_env() -> str:
@@ -77,59 +69,13 @@ def collect_env() -> str:
     return env_str
 
 
-def get_time_str() -> str:
-    """Get formatted time string.
-
-    Returns:
-        str: Time string similar to "20210923_192721"
-    """
-    return time.strftime("%Y%m%d_%H%M%S", time.localtime())
-
-
-def highlight(code: str, filename: str) -> str:
-    """Highlight the code.
-
-    Currently only ``.py`` and ``.yaml`` are supported.
-
-    Example::
-
-    >>> highlight(open("code.py", "r").read(), ".py")
-
-    Args:
-        code (str): Code string.
-        filename (str): Full file name or extension name.
-
-    Returns:
-        str: Highlighted code string.
-    """
-    if not filename.endswith(".py") and not filename.endswith(".yaml"):
-        logger.warning("Cannot highlight code, only .py and .yaml are supported.")
-        return code
-
-    try:
-        import pygments
-    except ImportError:
-        logger.warning(
-            "Cannot highlight code because of the ImportError of `pygments`. "
-            "Try `pip install pygments`."
-        )
-        return code
-
-    from pygments.formatters import Terminal256Formatter
-    from pygments.lexers import Python3Lexer, YamlLexer
-
-    lexer = Python3Lexer() if filename.endswith(".py") else YamlLexer()
-    code = pygments.highlight(code, lexer, Terminal256Formatter(style="monokai"))
-    return code
-
-
 def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> None:
     """Set random seed.
 
     Args:
         seed (int): If None or negative, will use a generated seed.
-        deterministic (bool, optional): If True, CUDA will select the same and deterministic
-            convolution algorithm each time an application is run.
+        deterministic (bool): If True, CUDA will select the same and deterministic
+            convolution algorithm each time an application is run. Defaults to False.
     """
     if seed is None or seed < 0:
         seed = (
@@ -159,22 +105,22 @@ def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
     Args:
         src (str): Path to source.
         dst (str): Path to target.
-        overwrite (bool, optional): If True, remove existed target. Defaults to True.
+        overwrite (bool): If True, remove existed target. Defaults to True.
     """
     if os.path.lexists(dst) and overwrite:
         os.remove(dst)
     os.symlink(src, dst, **kwargs)
 
 
-def create_small_table(small_dict):
-    """Create a small table using the keys of small_dict as headers. This is only
-    suitable for small dictionaries.
+def create_small_table(small_dict: Dict[str, Any]) -> str:
+    """Create a small table using the keys of ``small_dict`` as headers.
+    This is only suitable for small dictionaries.
 
     Args:
-        small_dict (dict): a result dictionary of only a few items.
+        small_dict (dict): A result dictionary of only a few items.
 
     Returns:
-        str: the table as a string.
+        str: The table as a string.
     """
     keys, values = tuple(zip(*small_dict.items()))
     table = tabulate(

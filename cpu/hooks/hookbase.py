@@ -25,7 +25,7 @@ class HookBase:
     .. Note::
 
         1. In the hook method, users can access ``self.trainer`` to access more
-           properties about the context (e.g., model, current iteration, or config).
+           properties about the context (e.g., model, optimizer, current iteration).
         2. A hook that does something in :meth:`before_iter` can often be implemented
            equivalently in :meth:`after_iter`. If the hook takes non-trivial time, it
            is strongly recommended to implement the hook in :meth:`after_iter` instead
@@ -75,11 +75,11 @@ class HookBase:
         return callable(getattr(self, "state_dict", None))
 
     @property
-    def class_name(self) -> bool:
+    def class_name(self) -> str:
         """Return the class name of the hook."""
         return self.__class__.__name__
 
-    # belows are helper functions that are often used in hook
+    # belows are some helper functions that are often used in hook
     def every_n_epochs(self, n: int) -> bool:
         return (self.trainer.epoch + 1) % n == 0 if n > 0 else False
 

@@ -1,3 +1,5 @@
+from typing import Callable
+
 from .hookbase import HookBase
 
 
@@ -7,7 +9,7 @@ class EvalHook(HookBase):
     It is executed every ``period`` epochs and after the last epoch.
     """
 
-    def __init__(self, period, eval_func):
+    def __init__(self, period: int, eval_func: Callable):
         """
         Args:
             period (int): The period to run ``eval_func``. Set to 0 to

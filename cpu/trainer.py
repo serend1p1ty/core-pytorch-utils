@@ -15,7 +15,6 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
 from .hooks import CheckpointerHook, HookBase, TensorboardWriterHook, TerminalWriterHook
-from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .metric_storage import MetricStorage
 from .misc import symlink
@@ -44,18 +43,6 @@ class Trainer:
     .. Note::
 
         Currently only support single GPU training.
-
-    Attributes:
-        model (torch.nn.Module)
-        optimizer (torch.optim.Optimizer)
-        lr_scheduler (torch.optim.lr_scheduler._LRScheduler)
-        data_loader (torch.utils.data.DataLoader): Training data loader.
-        work_dir (str): The working directory to save checkpoints and logs. Defaults to "work_dir".
-        iter (int): The current iteration.
-        epoch (int): The current epoch.
-        start_iter (int): The iteration to start from. The minimum possible value is 0.
-        start_epoch (int): The epoch to start from. The minimum possible value is 0.
-        max_epochs (int): Total training epochs.
     """
 
     def __init__(
@@ -75,6 +62,28 @@ class Trainer:
         warmup_iters: int = 1000,
         warmup_factor: float = 0.001,
     ):
+        """
+        Args:
+            model (torch.nn.Module)
+            optimizer (torch.optim.Optimizer)
+            lr_scheduler (optim.lr_scheduler._LRScheduler)
+            data_loader (torch.utils.data.DataLoader): Training data loader.
+            max_epochs (int): Total training epochs.
+            work_dir (str): The working directory to save checkpoints and logs.
+                Defaults to "work_dir".
+            max_num_checkpoints (int): The maximum number of checkpoints to save.
+                If None, save all checkpoints. Defaults to None.
+            checkpoint_period (int): The period (epoch-based) to save checkpoint. Defaults to 1.
+            log_period (int): The period (iter-based) to log. Defaults to 50.
+            clip_grad_norm (float): [description]. Defaults to 0.0.
+            enable_amp (bool): Enable the Automatic Mixed Precision (AMP) training.
+                Defaults to False.
+            warmup_method (str): Type of warmup used. It can be None (no warmup),
+                "constant", "linear" or "exp". Defaults to None.
+            warmup_iters (int): The number of iterations that warmup lasts. Defaults to 1000.
+            warmup_factor (float): LR used at the beginning of warmup equals to
+                ``warmup_factor * initial_lr``. Defaults to 0.001.
+        """
         self.model = model
         self.optimizer = optimizer
         # convert epoch-based scheduler to iteration-based scheduler
@@ -88,7 +97,7 @@ class Trainer:
         # counters
         self.inner_iter: int  # [0, epoch_len - 1]
         self.epoch: int  # [0, max_epochs - 1]
-        self.start_epoch = 0
+        self.start_epoch = 0  # [0, max_epochs - 1]
         self.max_epochs = max_epochs
 
         self._hooks: List[HookBase] = []
@@ -98,11 +107,7 @@ class Trainer:
         self._log_period = log_period
         self._clip_grad_norm = clip_grad_norm
         self._enable_amp = enable_amp
-        if enable_amp:
-            logger.info("Automatic Mixed Precision (AMP) training is on.")
-            self._scaler = GradScaler()
 
-        # register default hooks and setup logger
         self._default_setup()
 
     @property
@@ -124,6 +129,7 @@ class Trainer:
 
     @property
     def start_iter(self) -> int:
+        """The iteration to start from. The minimum possible value is 0."""
         return self.start_epoch * self.epoch_len
 
     @property
@@ -133,10 +139,6 @@ class Trainer:
     @property
     def tb_dir(self) -> str:
         return osp.join(self.work_dir, "tb_logs")
-
-    @property
-    def log_file(self) -> str:
-        return osp.join(self.work_dir, "log.txt")
 
     @property
     def model_or_module(self) -> nn.Module:
@@ -150,20 +152,17 @@ class Trainer:
         return [h.__class__.__name__ for h in self._hooks]
 
     def _default_setup(self):
+        if self._enable_amp:
+            logger.info("Automatic Mixed Precision (AMP) training is on.")
+            self._scaler = GradScaler()
+
         self.register_hooks(self._build_default_hooks())
         logger.info(f"Registered default hooks: {self.registered_hook_names}")
 
-        # setup the root logger of the `cpu` library to show
-        # the log messages generated from this library
-        setup_logger("cpu", output=self.log_file)
-
-        os.makedirs(self.work_dir, exist_ok=True)
-        os.makedirs(self.ckpt_dir, exist_ok=True)
         logger.info(
             f"Work directory: '{self.work_dir}'. "
             f"Checkpoint directory: '{self.ckpt_dir}'. "
             f"Tensorboard directory: '{self.tb_dir}'. "
-            f"Log file: '{self.log_file}'."
         )
 
     def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
@@ -326,6 +325,7 @@ class Trainer:
         if hooks_state:
             data["hooks"] = hooks_state
 
+        os.makedirs(self.ckpt_dir, exist_ok=True)
         file_path = osp.join(self.ckpt_dir, file_name)
         logger.info(f"Saving checkpoint to {file_path}")
         torch.save(data, file_path)
@@ -343,10 +343,10 @@ class Trainer:
         """Load the given checkpoint.
 
         Args:
-            checkpoint (Dict[str, Any]): The checkpoint to load.
+            checkpoint (dict): The checkpoint to load.
             path (str): Path to the checkpoint. If empty, will not load anything.
                 `checkpoint` and `path` can only be specified one.
-            which_to_load (List[str]): List of checkpointable names to load.
+            which_to_load (list[str]): List of checkpointable names to load.
                 If None, will load all possible checkpointables. Defaults to None.
         """
         assert checkpoint or path, "Either `checkpoint` or `path` must be specified."

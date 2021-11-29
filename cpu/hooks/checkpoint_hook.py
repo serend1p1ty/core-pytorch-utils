@@ -33,7 +33,7 @@ class CheckpointerHook(HookBase):
             if self._max_to_keep is not None:
                 self._recent_checkpoints.append(checkpoint_name)
                 if len(self._recent_checkpoints) > self._max_to_keep:
-                    # delete the oldest checkpointer
+                    # delete the oldest checkpoint
                     file_name = self._recent_checkpoints.pop(0)
                     file_path = osp.join(self.trainer.ckpt_dir, file_name)
                     if os.path.exists(file_path):

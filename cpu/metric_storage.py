@@ -21,7 +21,7 @@ class _SmoothedValue:
     def __init__(self, window_size: int = 20) -> None:
         """
         Args:
-            window_size (int, optional): The maximal number of values that can
+            window_size (int): The maximal number of values that can
                 be stored in the buffer. Defaults to 20.
         """
         self._history = deque(maxlen=window_size)  # (iteration, value) pairs
@@ -85,7 +85,7 @@ class MetricStorage:
         """Add new scalar values of multiple metrics produced at a certain iteration.
 
         Args:
-            iter (int or None): The iteration in which these values are produced.
+            iter (int): The iteration in which these values are produced.
                 If None, use the built-in counter starting from 0.
             smooth (bool): If True, return the smoothed values of these metrics when
                 calling :meth:`values_maybe_smooth`. Otherwise, return the latest values.

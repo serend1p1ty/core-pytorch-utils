@@ -70,13 +70,13 @@ def setup_logger(
         >>> setup_logger(name="project.module2")
 
     Args:
-        name (str, optional): Logger name. Defaults to None to setup root logger.
-        output (str, optional): A file name or a directory to save log. If None, will not save
+        name (str): Logger name. Defaults to None to setup root logger.
+        output (str): A file name or a directory to save log. If None, will not save
             log file. If ends with ``.txt`` or ``.log``, assumed to be a file name. Otherwise, logs
             will be saved to ``output/log.txt``. Defaults to None.
-        log_level (int, optional): Verbosity level of the logger. Defaults to ``logging.DEBUG``.
-        rank (int, optional): Process rank in the distributed training. Defaults to 0.
-        color (bool, optional): If True, color the output. Defaults to True.
+        log_level (int): Verbosity level of the logger. Defaults to ``logging.DEBUG``.
+        rank (int): Process rank in the distributed training. Defaults to 0.
+        color (bool): If True, color the output. Defaults to True.
 
     Returns:
         logging.Logger: A initialized logger.

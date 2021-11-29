@@ -13,18 +13,18 @@ logger = logging.getLogger(__name__)
 class TensorboardWriterHook(HookBase):
     """Write all metrics to a tensorboard file."""
 
-    def __init__(self, period: int = 20, log_dir: str = "log_dir", **kwargs) -> None:
+    def __init__(self, period: int = 50, log_dir: str = "log_dir", **kwargs) -> None:
         """
         Args:
-            period (int): The period to write metrics.
-            log_dir (str): The directory to save the output events
-            kwargs: other arguments passed to ``torch.utils.tensorboard.SummaryWriter(...)``
+            period (int): The period to write metrics. Defaults to 50.
+            log_dir (str): The directory to save the output events. Defaults to "log_dir".
+            kwargs: Other arguments passed to ``torch.utils.tensorboard.SummaryWriter(...)``
         """
         self._period = period
         self._writer = SummaryWriter(log_dir, **kwargs)
         self._last_write = {}
 
-    def write(self) -> None:
+    def _write(self) -> None:
         for key, (iter, value) in self.storage.values_maybe_smooth.items():
             if key not in self._last_write or iter > self._last_write[key]:
                 self._writer.add_scalar(key, value, iter)
@@ -32,10 +32,10 @@ class TensorboardWriterHook(HookBase):
 
     def after_iter(self) -> None:
         if self.every_n_inner_iters(self._period):
-            self.write()
+            self._write()
 
     def after_epoch(self) -> None:
-        self.write()
+        self._write()
 
     def after_train(self) -> None:
         self._writer.close()
@@ -51,10 +51,10 @@ class TerminalWriterHook(HookBase):
     at the beginning of the list of hooks to obtain accurate timing.
     """
 
-    def __init__(self, period: int = 20) -> None:
+    def __init__(self, period: int = 50) -> None:
         """
         Args:
-            period (int): The period to write metrics.
+            period (int): The period to write metrics. Defaults to 50.
         """
         self._period = period
         self._train_start_time: float
@@ -96,7 +96,7 @@ class TerminalWriterHook(HookBase):
         eta_seconds = avg_iter_time * (max_iters - iter - 1)
         return str(datetime.timedelta(seconds=int(eta_seconds)))
 
-    def write(self) -> None:
+    def _write(self) -> None:
         # "data_time" may does not exist when user overwrites `self.trainer.train_one_iter()`
         data_time = self.storage.values_maybe_smooth.get("data_time", None)
         iter_time = self.storage.global_avg["iter_time"]
@@ -136,4 +136,4 @@ class TerminalWriterHook(HookBase):
         self.storage.update(self.trainer.iter, iter_time=iter_time)
 
         if self.every_n_inner_iters(self._period):
-            self.write()
+            self._write()

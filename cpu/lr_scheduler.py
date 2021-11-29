@@ -6,7 +6,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 class LRWarmupScheduler(_LRScheduler):
     """LR scheduler supporting warmup.
 
-    This class wrap the standard PyTorch LR scheduler to supporting warmup.
+    This class wraps the standard PyTorch LR scheduler to supporting warmup.
     The scheduler should be called after every iteration demonstrated in the following snippet:
 
     .. code-block:: python
@@ -41,12 +41,12 @@ class LRWarmupScheduler(_LRScheduler):
         scheduler (torch.optim.lr_scheduler._LRScheduler): Standard epoch-based LR scheduler.
         epoch_len (int): Length of one epoch, used for calling epoch-based
             LR scheduler at epoch end.
-        warmup_method (str, optional): Type of warmup used. It can be None (no warmup),
+        warmup_method (str): Type of warmup used. It can be None (no warmup),
             "constant", "linear" or "exp". Defaults to None.
-        warmup_iters (int, optional): The number of iterations that warmup lasts. Defaults to 1000.
-        warmup_factor (float, optional): LR used at the beginning of warmup equals to
+        warmup_iters (int): The number of iterations that warmup lasts. Defaults to 1000.
+        warmup_factor (float): LR used at the beginning of warmup equals to
             ``warmup_factor * initial_lr``. Defaults to 0.001.
-        last_epoch (int, optional): Create a member variable ``self.last_epoch`` to represent
+        last_epoch (int): Create a member variable ``self.last_epoch`` to represent
             the last iteration. Defaults to -1.
     """
 
