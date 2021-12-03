@@ -75,7 +75,8 @@ class Trainer:
                 If None, save all checkpoints. Defaults to None.
             checkpoint_period (int): The period (epoch-based) to save checkpoint. Defaults to 1.
             log_period (int): The period (iter-based) to log. Defaults to 50.
-            clip_grad_norm (float): [description]. Defaults to 0.0.
+            clip_grad_norm (float): Max norm of the gradients. If <= 0, will not clip gradients.
+                Defaults to 0.
             enable_amp (bool): Enable the Automatic Mixed Precision (AMP) training.
                 Defaults to False.
             warmup_method (str): Type of warmup used. It can be None (no warmup),
