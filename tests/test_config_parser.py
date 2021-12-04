@@ -31,7 +31,7 @@ def test_config_parser():
         assert args.arg_z == [2.0, 10.0]
         assert args.k == 3.0
 
-        args = parser.parse_args(["-c", "config.yaml", "-y", "5", "--arg-z", "18", "-k", "8"])
+        args = parser.parse_args(["-c", config_file, "-y", "5", "--arg-z", "18", "-k", "8"])
         assert args.arg_x is True
         assert args.y1 == 5
         assert args.arg_z == [2.0, 10.0, 18.0]

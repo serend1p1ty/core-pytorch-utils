@@ -15,6 +15,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
 from .hooks import CheckpointerHook, HookBase, TensorboardWriterHook, TerminalWriterHook
+from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .metric_storage import MetricStorage
 from .misc import symlink
@@ -142,6 +143,10 @@ class Trainer:
         return osp.join(self.work_dir, "tb_logs")
 
     @property
+    def log_file(self) -> str:
+        return osp.join(self.work_dir, "log.txt")
+
+    @property
     def model_or_module(self) -> nn.Module:
         if isinstance(self.model, (DistributedDataParallel, DataParallel)):
             return self.model.module
@@ -160,10 +165,17 @@ class Trainer:
         self.register_hooks(self._build_default_hooks())
         logger.info(f"Registered default hooks: {self.registered_hook_names}")
 
+        # setup the root logger of the `cpu` library to show
+        # the log messages generated from this library
+        setup_logger("cpu", output=self.log_file)
+
+        os.makedirs(self.work_dir, exist_ok=True)
+        os.makedirs(self.ckpt_dir, exist_ok=True)
         logger.info(
             f"Work directory: '{self.work_dir}'. "
             f"Checkpoint directory: '{self.ckpt_dir}'. "
             f"Tensorboard directory: '{self.tb_dir}'. "
+            f"Log file: '{self.log_file}'."
         )
 
     def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
@@ -326,7 +338,6 @@ class Trainer:
         if hooks_state:
             data["hooks"] = hooks_state
 
-        os.makedirs(self.ckpt_dir, exist_ok=True)
         file_path = osp.join(self.ckpt_dir, file_name)
         logger.info(f"Saving checkpoint to {file_path}")
         torch.save(data, file_path)
@@ -359,12 +370,9 @@ class Trainer:
 
         self.start_epoch = checkpoint["epoch"] + 1
 
-        if which_to_load is None or "optimizer" in which_to_load:
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
-        if which_to_load is None or "lr_scheduler" in which_to_load:
-            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-        if which_to_load is None or "metric_storage" in which_to_load:
-            self.metric_storage.load_state_dict(checkpoint["metric_storage"])
+        for entry in ["optimizer", "lr_scheduler", "metric_storage"]:
+            if which_to_load is None or entry in which_to_load:
+                getattr(self, entry).load_state_dict(checkpoint[entry])
 
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
         if incompatible.missing_keys:
