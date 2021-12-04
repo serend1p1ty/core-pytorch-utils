@@ -1,5 +1,6 @@
 import argparse
 import sys
+from argparse import _AppendAction
 
 import yaml
 
@@ -23,7 +24,7 @@ class ConfigArgumentParser:
 
         conf_parser = argparse.ArgumentParser(add_help=False)
         conf_parser.add_argument(
-            "--config", default=None, help="where to load YAML configuration", metavar="FILE"
+            "-c", "--config", default=None, help="where to load YAML configuration", metavar="FILE"
         )
 
         res, remaining_argv = conf_parser.parse_known_args(args)
@@ -31,7 +32,7 @@ class ConfigArgumentParser:
         config_vars = {}
         if res.config is not None:
             with open(res.config, "r") as stream:
-                config_vars = yaml.load(stream)
+                config_vars = yaml.safe_load(stream)
 
         parser = argparse.ArgumentParser(
             *self.args,
@@ -47,14 +48,27 @@ class ConfigArgumentParser:
             if opt_parser.dest in config_vars:
                 config_default = config_vars.pop(opt_parser.dest)
 
-                expected_type = str
                 if opt_parser.type is not None:
                     expected_type = opt_parser.type
-                if not isinstance(config_default, expected_type):
-                    parser.error(
-                        "YAML configuration entry {} "
-                        "does not have type {}".format(opt_parser.dest, expected_type)
-                    )
+                else:
+                    expected_type = type(opt_parser.default)
+
+                if isinstance(opt_parser, _AppendAction):
+                    if not isinstance(config_default, list) or not all(
+                        isinstance(var, expected_type) for var in config_default
+                    ):
+                        parser.error(
+                            "{} is expected to be a list of {}, but got {}".format(
+                                opt_parser.dest, expected_type, config_default
+                            )
+                        )
+                else:
+                    if not isinstance(config_default, expected_type):
+                        parser.error(
+                            "{} is expected to be {}, but got {}".format(
+                                opt_parser.dest, expected_type, config_default
+                            )
+                        )
 
                 opt_parser.default = config_default
 
