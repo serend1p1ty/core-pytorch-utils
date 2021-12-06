@@ -1,4 +1,4 @@
-from .config_parser import ConfigArgumentParser
+from .config_parser import ConfigArgumentParser, save_args
 from .hooks import *
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
