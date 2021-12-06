@@ -48,7 +48,9 @@ def _reset_logger():
     logger.logger_initialized.clear()
 
 
-def _create_new_trainer(max_epochs=10, log_period=1, checkpoint_period=1, work_dir="work_dir"):
+def _create_new_trainer(
+    max_epochs=10, log_period=1, checkpoint_period=1, work_dir="work_dir", max_num_checkpoints=None
+):
     _reset_logger()
 
     model = _SimpleModel()
@@ -64,6 +66,7 @@ def _create_new_trainer(max_epochs=10, log_period=1, checkpoint_period=1, work_d
         log_period=log_period,
         checkpoint_period=checkpoint_period,
         work_dir=work_dir,
+        max_num_checkpoints=max_num_checkpoints,
     )
     return trainer
 
@@ -277,3 +280,14 @@ def test_eval_hook():
             trainer.register_hooks([EvalHook(period, test_func)])
             trainer.train()
             assert test_func.call_count == eval_count
+
+
+def test_checkpoint_hook():
+    with tempfile.TemporaryDirectory() as dir:
+        trainer = _create_new_trainer(max_epochs=10, work_dir=dir, max_num_checkpoints=3)
+        trainer.train()
+        for epoch in range(10):
+            if epoch < 7:
+                assert not os.path.exists(os.path.join(dir, f"checkpoints/epoch_{epoch}.pth"))
+            else:
+                assert os.path.exists(os.path.join(dir, f"checkpoints/epoch_{epoch}.pth"))
