@@ -1,6 +1,6 @@
 import argparse
 import logging
-import sys
+import os
 from argparse import Namespace, _AppendAction
 from copy import deepcopy
 
@@ -87,6 +87,7 @@ def save_args(args: Namespace, filepath: str) -> None:
         filepath (str): A filepath ends with ".yaml".
     """
     assert filepath.endswith(".yaml")
+    os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
     save_dict = deepcopy(args.__dict__)
     save_dict.pop("config")
     with open(filepath, "w") as f:
