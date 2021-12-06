@@ -109,8 +109,8 @@ class Trainer:
         self._log_period = log_period
         self._clip_grad_norm = clip_grad_norm
         self._enable_amp = enable_amp
-
-        self._default_setup()
+        # True after calling self._prepare_for_training()
+        self._is_ready_for_training = False
 
     @property
     def lr(self) -> float:
@@ -157,10 +157,14 @@ class Trainer:
         """The names of all registered hooks."""
         return [h.__class__.__name__ for h in self._hooks]
 
-    def _default_setup(self):
+    def _prepare_for_training(self):
+        """The function is called only once in the program."""
+        if self._is_ready_for_training:
+            return
+
         if self._enable_amp:
             logger.info("Automatic Mixed Precision (AMP) training is on.")
-            self._scaler = GradScaler()
+            self._grad_scaler = GradScaler()
 
         self.register_hooks(self._build_default_hooks())
         logger.info(f"Registered default hooks: {self.registered_hook_names}")
@@ -169,7 +173,6 @@ class Trainer:
         # the log messages generated from this library
         setup_logger("cpu", output=self.log_file)
 
-        os.makedirs(self.work_dir, exist_ok=True)
         os.makedirs(self.ckpt_dir, exist_ok=True)
         logger.info(
             f"Work directory: '{self.work_dir}'. "
@@ -178,10 +181,16 @@ class Trainer:
             f"Log file: '{self.log_file}'."
         )
 
+        self._is_ready_for_training = True
+
     def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
         """Register hooks to the trainer.
 
-        The hooks are executed in the order they are registered.
+        We always keep :class:`TerminalWriterHook` as the first hook for accurate timing,
+        and keep :class:`TensorboardWriterHook` as the last hook to avoid losing any
+        information that should have been recorded.
+
+        The other hooks are executed in the order they are registered.
 
         Args:
             hooks (List[Optional[HookBase]]): List of hooks
@@ -193,8 +202,11 @@ class Trainer:
             # does not matter, but will cause memory leak if the involved objects contain __del__.
             # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
             h.trainer = weakref.proxy(self)
-            # keep `TensorboardWriterHook` is the last hook
-            if self._hooks and isinstance(self._hooks[-1], TensorboardWriterHook):
+            # keep `TerminalWriterHook` as the first hook
+            if isinstance(h, TerminalWriterHook):
+                self._hooks.insert(0, h)
+            # keep `TensorboardWriterHook` as the last hook
+            elif self._hooks and isinstance(self._hooks[-1], TensorboardWriterHook):
                 self._hooks.insert(len(self._hooks) - 1, h)
             else:
                 self._hooks.append(h)
@@ -279,20 +291,20 @@ class Trainer:
         ##########################
         self.optimizer.zero_grad()
         if self._enable_amp:
-            self._scaler.scale(losses).backward()
+            self._grad_scaler.scale(losses).backward()
         else:
             losses.backward()
         if self._clip_grad_norm > 0:
             if self._enable_amp:
-                self._scaler.unscale_(self.optimizer)
+                self._grad_scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self._clip_grad_norm)
 
         ##############################
         # 4. Update model parameters #
         ##############################
         if self._enable_amp:
-            self._scaler.step(self.optimizer)
-            self._scaler.update()
+            self._grad_scaler.step(self.optimizer)
+            self._grad_scaler.update()
         else:
             self.optimizer.step()
 
@@ -314,6 +326,7 @@ class Trainer:
     def train(self) -> None:
         """Start training."""
         logger.info(f"Start training from epoch {self.start_epoch}")
+        self._prepare_for_training()
         self._call_hooks("before_train")
         for self.epoch in range(self.start_epoch, self.max_epochs):
             self._call_hooks("before_epoch")
