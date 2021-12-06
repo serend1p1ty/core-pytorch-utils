@@ -157,7 +157,7 @@ class Trainer:
         """The names of all registered hooks."""
         return [h.__class__.__name__ for h in self._hooks]
 
-    def _prepare_for_training(self):
+    def _prepare_for_training(self) -> None:
         """The function is called only once in the program."""
         if self._is_ready_for_training:
             return
@@ -193,7 +193,7 @@ class Trainer:
         The other hooks are executed in the order they are registered.
 
         Args:
-            hooks (List[Optional[HookBase]]): List of hooks
+            hooks (list[HookBase]): List of hooks.
         """
         hooks = [h for h in hooks if h is not None]
         for h in hooks:
@@ -208,6 +208,7 @@ class Trainer:
             # keep `TensorboardWriterHook` as the last hook
             elif self._hooks and isinstance(self._hooks[-1], TensorboardWriterHook):
                 self._hooks.insert(len(self._hooks) - 1, h)
+            # the order of other hooks remains the same
             else:
                 self._hooks.append(h)
 
