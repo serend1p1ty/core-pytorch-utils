@@ -49,11 +49,17 @@ def _reset_logger():
 
 
 def _create_new_trainer(
-    max_epochs=10, log_period=1, checkpoint_period=1, work_dir="work_dir", max_num_checkpoints=None
+    max_epochs=10,
+    log_period=1,
+    checkpoint_period=1,
+    work_dir="work_dir",
+    max_num_checkpoints=None,
+    enable_amp=False,
+    device="cpu",
 ):
     _reset_logger()
 
-    model = _SimpleModel()
+    model = _SimpleModel().to(device)
     optimizer = torch.optim.SGD(model.parameters(), 0.1)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3)
     data_loader = DataLoader(_simple_dataset)
@@ -67,6 +73,7 @@ def _create_new_trainer(
         checkpoint_period=checkpoint_period,
         work_dir=work_dir,
         max_num_checkpoints=max_num_checkpoints,
+        enable_amp=enable_amp,
     )
     return trainer
 
@@ -211,65 +218,82 @@ def test_tensorboard_logging():
 
 
 def test_checkpoint_and_resume():
-    with tempfile.TemporaryDirectory() as dir1:
-        trainer = _create_new_trainer(max_epochs=4, work_dir=dir1, checkpoint_period=3)
-        trainer.train()
-
-        assert (trainer.lr - 0.01) < 1e-7
-        assert trainer.lr_scheduler.last_epoch == 40
-
-        # test periodically checkpointing
-        for should_ckpt_epoch in [2, 3]:
-            assert os.path.exists(os.path.join(dir1, f"checkpoints/epoch_{should_ckpt_epoch}.pth"))
-        assert os.path.exists(os.path.join(dir1, "checkpoints/latest.pth"))
-
-        epoch_3_losses = [
-            loss
-            for (iter, loss) in trainer.metric_storage._history["total_loss"]._history
-            if iter >= 30 and iter < 40
-        ]
-
-        epoch_3_smoothed_losses = []
-        for line in open(os.path.join(dir1, "log.txt")):
-            if "Epoch: [3]" not in line:
+    for enable_amp in [True, False]:
+        for device in ["cuda", "cpu"]:
+            if enable_amp is True and device == "cpu":
                 continue
-            res = re.findall(r"total_loss: \d+.\d+", line)
-            epoch_3_smoothed_losses.append(res[0])
+            with tempfile.TemporaryDirectory() as dir1:
+                trainer = _create_new_trainer(
+                    max_epochs=4,
+                    work_dir=dir1,
+                    checkpoint_period=3,
+                    enable_amp=enable_amp,
+                    device=device,
+                )
+                trainer.train()
 
-        # resume training from the "epoch_2.pth"
-        with tempfile.TemporaryDirectory() as dir2:
-            trainer = _create_new_trainer(max_epochs=4, work_dir=dir2, checkpoint_period=3)
-            trainer.load_checkpoint(os.path.join(dir1, "checkpoints/epoch_2.pth"))
-            assert (trainer.lr - 0.01) < 1e-7
-            assert trainer.lr_scheduler.last_epoch == 30
-            trainer.train()
+                assert (trainer.lr - 0.01) < 1e-7
+                assert trainer.lr_scheduler.last_epoch == 40
 
-            # test periodically checkpointing
-            assert os.path.exists(os.path.join(dir2, "checkpoints/epoch_3.pth"))
-            assert os.path.exists(os.path.join(dir2, "checkpoints/latest.pth"))
+                # test periodically checkpointing
+                for should_ckpt_epoch in [2, 3]:
+                    assert os.path.exists(
+                        os.path.join(dir1, f"checkpoints/epoch_{should_ckpt_epoch}.pth")
+                    )
+                assert os.path.exists(os.path.join(dir1, "checkpoints/latest.pth"))
 
-            epoch_3_losses_resume = [
-                loss
-                for (iter, loss) in trainer.metric_storage._history["total_loss"]._history
-                if iter >= 30 and iter < 40
-            ]
+                epoch_3_losses = [
+                    loss
+                    for (iter, loss) in trainer.metric_storage._history["total_loss"]._history
+                    if iter >= 30 and iter < 40
+                ]
 
-            epoch_3_smoothed_losses_resume = []
-            for line in open(os.path.join(dir2, "log.txt")):
-                if "Epoch: [3]" not in line:
-                    continue
-                res = re.findall(r"total_loss: \d+.\d+", line)
-                epoch_3_smoothed_losses_resume.append(res[0])
+                epoch_3_smoothed_losses = []
+                for line in open(os.path.join(dir1, "log.txt")):
+                    if "Epoch: [3]" not in line:
+                        continue
+                    res = re.findall(r"total_loss: \d+.\d+", line)
+                    epoch_3_smoothed_losses.append(res[0])
 
-            # If the model/optimizer/lr_scheduler resumes correctly,
-            # the training losses should be the same.
-            for loss1, loss2 in zip(epoch_3_losses, epoch_3_losses_resume):
-                assert loss1 == loss2
+                # resume training from the "epoch_2.pth"
+                with tempfile.TemporaryDirectory() as dir2:
+                    trainer = _create_new_trainer(max_epochs=4, work_dir=dir2, checkpoint_period=3)
+                    trainer.load_checkpoint(os.path.join(dir1, "checkpoints/epoch_2.pth"))
+                    assert (trainer.lr - 0.01) < 1e-7
+                    assert trainer.lr_scheduler.last_epoch == 30
+                    trainer.train()
 
-            # If the metric storage resumes correctly,
-            # the training smoothed losses should be the same too.
-            for loss1, loss2 in zip(epoch_3_smoothed_losses, epoch_3_smoothed_losses_resume):
-                assert loss1 == loss2
+                    # test periodically checkpointing
+                    assert os.path.exists(os.path.join(dir2, "checkpoints/epoch_3.pth"))
+                    assert os.path.exists(os.path.join(dir2, "checkpoints/latest.pth"))
+
+                    epoch_3_losses_resume = [
+                        loss
+                        for (iter, loss) in trainer.metric_storage._history["total_loss"]._history
+                        if iter >= 30 and iter < 40
+                    ]
+
+                    epoch_3_smoothed_losses_resume = []
+                    for line in open(os.path.join(dir2, "log.txt")):
+                        if "Epoch: [3]" not in line:
+                            continue
+                        res = re.findall(r"total_loss: \d+.\d+", line)
+                        epoch_3_smoothed_losses_resume.append(res[0])
+
+                    # If the model/optimizer/lr_scheduler resumes correctly,
+                    # the training losses should be the same.
+                    for loss1, loss2 in zip(epoch_3_losses, epoch_3_losses_resume):
+                        if device == "cpu":
+                            assert loss1 == loss2
+                        else:
+                            assert abs(loss1 - loss2) < 1e-6
+
+                    # If the metric storage resumes correctly,
+                    # the training smoothed losses should be the same too.
+                    for loss1, loss2 in zip(
+                        epoch_3_smoothed_losses, epoch_3_smoothed_losses_resume
+                    ):
+                        assert loss1 == loss2
 
 
 def test_eval_hook():
