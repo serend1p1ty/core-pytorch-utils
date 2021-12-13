@@ -112,6 +112,9 @@ class Trainer:
         # True after calling self._prepare_for_training()
         self._is_ready_for_training = False
 
+        self.register_hooks(self._build_default_hooks())
+        logger.info(f"Registered default hooks: {self.registered_hook_names}")
+
     @property
     def lr(self) -> float:
         return self.optimizer.param_groups[0]["lr"]
@@ -158,16 +161,13 @@ class Trainer:
         return [h.__class__.__name__ for h in self._hooks]
 
     def _prepare_for_training(self) -> None:
-        """The function is called only once in the program."""
+        """The function is called only once in program."""
         if self._is_ready_for_training:
             return
 
         if self._enable_amp:
             logger.info("Automatic Mixed Precision (AMP) training is on.")
             self._grad_scaler = GradScaler()
-
-        self.register_hooks(self._build_default_hooks())
-        logger.info(f"Registered default hooks: {self.registered_hook_names}")
 
         # setup the root logger of the `cpu` library to show
         # the log messages generated from this library
@@ -348,9 +348,11 @@ class Trainer:
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "metric_storage": self.metric_storage.state_dict(),
         }
-        hooks_state = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
-        if hooks_state:
-            data["hooks"] = hooks_state
+        hook_states = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
+        if hook_states:
+            data["hooks"] = hook_states
+        if self._enable_amp:
+            data["grad_scaler"] = self._grad_scaler.state_dict()
 
         file_path = osp.join(self.ckpt_dir, file_name)
         logger.info(f"Saving checkpoint to {file_path}")
@@ -388,6 +390,12 @@ class Trainer:
             if which_to_load is None or entry in which_to_load:
                 getattr(self, entry).load_state_dict(checkpoint[entry])
 
+        assert not (
+            self._enable_amp ^ "grad_scaler" in checkpoint
+        ), "Found inconsistent AMP training setting when loading checkpoint."
+        if self._enable_amp:
+            self._grad_scaler.load_state_dict(checkpoint["grad_scaler"])
+
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
         if incompatible.missing_keys:
             logger.warning(
@@ -399,10 +407,10 @@ class Trainer:
                 f"{incompatible.unexpected_keys}"
             )
 
-        hook_state = checkpoint.get("hooks", {})
+        hook_states = checkpoint.get("hooks", {})
         hook_names = [h.class_name for h in self._hooks if h.checkpointable]
-        missing_keys = [name for name in hook_names if name not in hook_state]
-        unexpected_keys = [key for key in hook_state if key not in hook_names]
+        missing_keys = [name for name in hook_names if name not in hook_states]
+        unexpected_keys = [key for key in hook_states if key not in hook_names]
         if missing_keys:
             logger.warning(f"Encounter missing keys when loading hook state dict:\n{missing_keys}")
         if unexpected_keys:
@@ -410,7 +418,7 @@ class Trainer:
                 f"Encounter unexpected keys when loading hook state dict:\n{unexpected_keys}"
             )
 
-        for key, value in hook_state.items():
+        for key, value in hook_states.items():
             for h in self._hooks:
                 if h.class_name == key and h.checkpointable:
                     h.load_state_dict(value)
