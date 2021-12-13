@@ -246,14 +246,6 @@ class Trainer:
     def train_one_iter(self) -> None:
         """Train one iteration.
 
-        It does the following things:
-
-        1. Load batch data.
-        2. Forward batch and calculate loss.
-        3. Backward loss to calculate gradients.
-        4. Update model parameters by optimizer.
-        5. Adjust the learning rate of the optimizer.
-
         .. Note::
 
             Standard PyTorch LR scheduler is epoch-based and called at the end of epoch.
