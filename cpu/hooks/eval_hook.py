@@ -33,7 +33,7 @@ class EvalHook(HookBase):
                         "[EvalHook] eval_function should return a dict of float. "
                         f"Got '{k}: {v}' instead."
                     ) from e
-            self.storage.update(self.trainer.epoch, **res, smooth=False)
+            self.log(self.trainer.epoch, **res, smooth=False)
 
     def after_epoch(self):
         if self.every_n_epochs(self._period) or self.is_last_epoch():

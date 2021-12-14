@@ -162,6 +162,10 @@ class Trainer:
         """The names of all registered hooks."""
         return [h.__class__.__name__ for h in self._hooks]
 
+    def log(self, *args, **kwargs) -> None:
+        """Update metrics."""
+        self.metric_storage.update(*args, **kwargs)
+
     def _prepare_for_training(self) -> None:
         # setup the root logger of the `cpu` library to show
         # the log messages generated from this library
@@ -224,8 +228,8 @@ class Trainer:
             loss_dict (dict): Dict of scalar losses.
             data_time (float): Time taken by the dataloader iteration.
         """
-        self.metric_storage.update(self.iter, data_time=data_time)
-        self.metric_storage.update(self.iter, lr=self.lr, smooth=False)
+        self.log(self.iter, data_time=data_time)
+        self.log(self.iter, lr=self.lr, smooth=False)
 
         loss_dict = {k: v.detach().cpu().item() for k, v in loss_dict.items()}
         loss_value = sum(loss_dict.values())
@@ -234,9 +238,9 @@ class Trainer:
                 f"Loss became infinite or NaN at epoch={self.epoch}! loss_dict = {loss_dict}."
             )
 
-        self.metric_storage.update(self.iter, total_loss=loss_value)
+        self.log(self.iter, total_loss=loss_value)
         if len(loss_dict) > 1:
-            self.metric_storage.update(self.iter, **loss_dict)
+            self.log(self.iter, **loss_dict)
 
     def train_one_iter(self) -> None:
         """Train one iteration.

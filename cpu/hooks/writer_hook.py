@@ -25,7 +25,7 @@ class TensorboardWriterHook(HookBase):
         self._last_write = {}
 
     def _write(self) -> None:
-        for key, (iter, value) in self.storage.values_maybe_smooth.items():
+        for key, (iter, value) in self.metric_storage.values_maybe_smooth.items():
             if key not in self._last_write or iter > self._last_write[key]:
                 self._writer.add_scalar(key, value, iter)
                 self._last_write[key] = iter
@@ -92,15 +92,15 @@ class TerminalWriterHook(HookBase):
     def _get_eta(self) -> str:
         iter = self.trainer.iter
         max_iters = self.trainer.max_iters
-        avg_iter_time = self.storage.global_avg["iter_time"][1]
+        avg_iter_time = self.metric_storage.global_avg["iter_time"][1]
         eta_seconds = avg_iter_time * (max_iters - iter - 1)
         return str(datetime.timedelta(seconds=int(eta_seconds)))
 
     def _write(self) -> None:
         # "data_time" may does not exist when user overwrites `self.trainer.train_one_iter()`
-        data_time = self.storage.values_maybe_smooth.get("data_time", None)
-        iter_time = self.storage.global_avg["iter_time"]
-        lr = self.storage.values_maybe_smooth["lr"]
+        data_time = self.metric_storage.values_maybe_smooth.get("data_time", None)
+        iter_time = self.metric_storage.global_avg["iter_time"]
+        lr = self.metric_storage.values_maybe_smooth["lr"]
         eta_string = self._get_eta()
 
         if torch.cuda.is_available():
@@ -110,7 +110,7 @@ class TerminalWriterHook(HookBase):
 
         loss_strings = [
             f"{key}: {value:.4g}"
-            for key, (_, value) in self.storage.values_maybe_smooth.items()
+            for key, (_, value) in self.metric_storage.values_maybe_smooth.items()
             if "loss" in key
         ]
 
@@ -133,7 +133,7 @@ class TerminalWriterHook(HookBase):
     def after_iter(self) -> None:
         iter_time = time.perf_counter() - self._iter_start_time
         self._total_iter_time += iter_time
-        self.storage.update(self.trainer.iter, iter_time=iter_time)
+        self.log(self.trainer.iter, iter_time=iter_time)
 
         if self.every_n_inner_iters(self._period):
             self._write()

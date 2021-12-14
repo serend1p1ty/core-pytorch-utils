@@ -63,13 +63,8 @@ class HookBase:
         pass
 
     @property
-    def storage(self) -> MetricStorage:
-        """The abbreviation of ``self.trainer.metric_storage``."""
-        return self.trainer.metric_storage
-
-    @property
     def checkpointable(self) -> bool:
-        """If a hook has :meth:`state_dict` method, it is checkpointable.
+        """A hook is checkpointable when it has :meth:`state_dict` method.
         Its state will be saved into checkpoint.
         """
         return callable(getattr(self, "state_dict", None))
@@ -78,6 +73,13 @@ class HookBase:
     def class_name(self) -> str:
         """Return the class name of the hook."""
         return self.__class__.__name__
+
+    @property
+    def metric_storage(self) -> MetricStorage:
+        return self.trainer.metric_storage
+
+    def log(self, *args, **kwargs) -> None:
+        self.trainer.log(*args, **kwargs)
 
     # belows are some helper functions that are often used in hook
     def every_n_epochs(self, n: int) -> bool:
