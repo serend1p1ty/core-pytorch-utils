@@ -257,7 +257,13 @@ def test_checkpoint_and_resume():
 
                 # resume training from the "epoch_2.pth"
                 with tempfile.TemporaryDirectory() as dir2:
-                    trainer = _create_new_trainer(max_epochs=4, work_dir=dir2, checkpoint_period=3)
+                    trainer = _create_new_trainer(
+                        max_epochs=4,
+                        work_dir=dir2,
+                        checkpoint_period=3,
+                        enable_amp=enable_amp,
+                        device=device,
+                    )
                     trainer.load_checkpoint(os.path.join(dir1, "checkpoints/epoch_2.pth"))
                     assert (trainer.lr - 0.01) < 1e-7
                     assert trainer.lr_scheduler.last_epoch == 30

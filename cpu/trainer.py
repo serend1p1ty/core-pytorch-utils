@@ -109,11 +109,13 @@ class Trainer:
         self._log_period = log_period
         self._clip_grad_norm = clip_grad_norm
         self._enable_amp = enable_amp
-        # True after calling self._prepare_for_training()
-        self._is_ready_for_training = False
 
         self.register_hooks(self._build_default_hooks())
         logger.info(f"Registered default hooks: {self.registered_hook_names}")
+
+        if self._enable_amp:
+            logger.info("Automatic Mixed Precision (AMP) training is on.")
+            self._grad_scaler = GradScaler()
 
     @property
     def lr(self) -> float:
@@ -161,27 +163,20 @@ class Trainer:
         return [h.__class__.__name__ for h in self._hooks]
 
     def _prepare_for_training(self) -> None:
-        """The function is called only once in program."""
-        if self._is_ready_for_training:
-            return
-
-        if self._enable_amp:
-            logger.info("Automatic Mixed Precision (AMP) training is on.")
-            self._grad_scaler = GradScaler()
-
         # setup the root logger of the `cpu` library to show
         # the log messages generated from this library
         setup_logger("cpu", output=self.log_file)
 
         os.makedirs(self.ckpt_dir, exist_ok=True)
+        split_line = "-" * 50
         logger.info(
-            f"Work directory: '{self.work_dir}'. "
-            f"Checkpoint directory: '{self.ckpt_dir}'. "
-            f"Tensorboard directory: '{self.tb_dir}'. "
-            f"Log file: '{self.log_file}'."
+            f"\n{split_line}\n"
+            f"Work directory: {self.work_dir}\n"
+            f"Checkpoint directory: {self.ckpt_dir}\n"
+            f"Tensorboard directory: {self.tb_dir}\n"
+            f"Log file: {self.log_file}\n"
+            f"{split_line}"
         )
-
-        self._is_ready_for_training = True
 
     def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
         """Register hooks to the trainer.
@@ -382,22 +377,18 @@ class Trainer:
             if which_to_load is None or entry in which_to_load:
                 getattr(self, entry).load_state_dict(checkpoint[entry])
 
-        assert not (
-            self._enable_amp ^ "grad_scaler" in checkpoint
-        ), "Found inconsistent AMP training setting when loading checkpoint."
+        consistent_amp = not (self._enable_amp ^ ("grad_scaler" in checkpoint))
+        assert consistent_amp, "Found inconsistent AMP training setting when loading checkpoint."
         if self._enable_amp:
             self._grad_scaler.load_state_dict(checkpoint["grad_scaler"])
 
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
         if incompatible.missing_keys:
-            logger.warning(
-                f"Encounter missing keys when loading model weights:\n{incompatible.missing_keys}"
-            )
+            logger.warning("Encounter missing keys when loading model weights:\n"
+                            f"{incompatible.missing_keys}")
         if incompatible.unexpected_keys:
-            logger.warning(
-                "Encounter unexpected keys when loading model weights:\n"
-                f"{incompatible.unexpected_keys}"
-            )
+            logger.warning("Encounter unexpected keys when loading model weights:\n"
+                            f"{incompatible.unexpected_keys}")
 
         hook_states = checkpoint.get("hooks", {})
         hook_names = [h.class_name for h in self._hooks if h.checkpointable]
@@ -406,9 +397,7 @@ class Trainer:
         if missing_keys:
             logger.warning(f"Encounter missing keys when loading hook state dict:\n{missing_keys}")
         if unexpected_keys:
-            logger.warning(
-                f"Encounter unexpected keys when loading hook state dict:\n{unexpected_keys}"
-            )
+            logger.warning(f"Encounter unexpected keys when loading hook state dict:\n{unexpected_keys}")
 
         for key, value in hook_states.items():
             for h in self._hooks:
