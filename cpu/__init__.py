@@ -4,3 +4,4 @@ from .lr_scheduler import LRWarmupScheduler
 from .metric_storage import MetricStorage
 from .misc import *
 from .trainer import Trainer
+from .config_parser import ConfigArgumentParser
