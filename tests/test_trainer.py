@@ -252,7 +252,7 @@ def test_checkpoint_and_resume():
                 for line in open(os.path.join(dir1, "log.txt")):
                     if "Epoch: [3]" not in line:
                         continue
-                    res = re.findall(r"total_loss: \d+.\d+", line)
+                    res = re.findall(r"total_loss: \S+", line)
                     epoch_3_smoothed_losses.append(res[0])
 
                 # resume training from the "epoch_2.pth"
@@ -283,7 +283,7 @@ def test_checkpoint_and_resume():
                     for line in open(os.path.join(dir2, "log.txt")):
                         if "Epoch: [3]" not in line:
                             continue
-                        res = re.findall(r"total_loss: \d+.\d+", line)
+                        res = re.findall(r"total_loss: \S+", line)
                         epoch_3_smoothed_losses_resume.append(res[0])
 
                     # If the model/optimizer/lr_scheduler resumes correctly,
