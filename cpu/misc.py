@@ -1,10 +1,9 @@
-import datetime
 import logging
 import os
 import random
 import sys
 from collections import defaultdict
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -69,34 +68,19 @@ def collect_env() -> str:
     return env_str
 
 
-def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> None:
+def set_random_seed(seed: int, rank: int = 0) -> None:
     """Set random seed.
 
     Args:
-        seed (int): If None or negative, will use a generated seed.
-        deterministic (bool): If True, CUDA will select the same and deterministic
-            convolution algorithm each time an application is run. Defaults to False.
+        seed (int): Nonnegative integer.
+        rank (int): Process rank in the distributed training. Defaults to 0.
     """
-    if seed is None or seed < 0:
-        seed = (
-            os.getpid()
-            + int(datetime.now().strftime("%S%f"))
-            + int.from_bytes(os.urandom(2), "big")
-        )
-        logger.info(f"Using a generated random seed {seed}")
-
+    assert seed >= 0, f"Got invalid seed value {seed}."
+    seed += rank
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
-
-    if deterministic:
-        # While disabling CUDA convolution benchmarking ensures that CUDA
-        # selects the same convolution algorithm each time an application
-        # is run, that algorithm itself may be nondeterministic, unless
-        # `torch.backends.cudnn.deterministic = True` is set.
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
 
 
 def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
