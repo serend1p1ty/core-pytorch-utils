@@ -1,19 +1,19 @@
 import math
 
-from cpu.metric_storage import MetricStorage, _SmoothedValue
+from cpu.metric_storage import MetricStorage, SmoothedValue
 
 
 def test_smoothed_value():
-    smoothed_value = _SmoothedValue(window_size=4)
-    smoothed_value.update(0.1, 0)
-    smoothed_value.update(0.2, 2)
-    smoothed_value.update(0.5, 4)
-    smoothed_value.update(0.8, 8)
-    assert smoothed_value.median == (8, 0.35)
-    assert smoothed_value.global_avg == (8, 0.4)
-    smoothed_value.update(1.0, 9)
-    assert smoothed_value.median == (9, 0.65)
-    assert smoothed_value.global_avg == (9, 0.52)
+    smoothed_value = SmoothedValue(window_size=4)
+    smoothed_value.update(0.1)
+    smoothed_value.update(0.2)
+    smoothed_value.update(0.5)
+    smoothed_value.update(0.8)
+    assert smoothed_value.median == 0.35
+    assert smoothed_value.global_avg == 0.4
+    smoothed_value.update(1.0)
+    assert smoothed_value.median == 0.65
+    assert smoothed_value.global_avg == 0.52
 
 
 def test_metric_storage():
@@ -35,7 +35,7 @@ def test_metric_storage():
     assert metric_storage.global_avg["accuracy"] == (5, 0.45)
 
     # with smooth
-    metric_storage.clear()
+    metric_storage = MetricStorage(window_size=4)
     metric_storage.update(0, loss=0.7, accuracy=0.1)
     metric_storage.update(1, loss=0.6, accuracy=0.2)
     metric_storage.update(2, loss=0.4, accuracy=0.3)

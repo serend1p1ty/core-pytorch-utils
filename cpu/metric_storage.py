@@ -1,21 +1,19 @@
+import numpy as np
 from collections import deque
 from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
 
-
-class _SmoothedValue:
+class SmoothedValue:
     """The class tracks a series of values and provides access to the smoothed
-    value over a window or the global average of the series. The returned
-    value is (iteration, value) pair.
+    value over a window or the global average of the series.
 
     Example::
 
-        >>> smoothed_value = _SmoothedValue()
-        >>> smoothed_value.update(value=0.1, iter=0)
-        >>> smoothed_value.update(value=0.2, iter=1)
+        >>> smoothed_value = SmoothedValue()
+        >>> smoothed_value.update(value=0.1)
+        >>> smoothed_value.update(value=0.2)
         >>> smoothed_value.median
-        (1, 0.15)
+        0.15
     """
 
     def __init__(self, window_size: int = 20) -> None:
@@ -24,44 +22,34 @@ class _SmoothedValue:
             window_size (int): The maximal number of values that can
                 be stored in the buffer. Defaults to 20.
         """
-        self._history = deque(maxlen=window_size)  # (iteration, value) pairs
+        self._history = deque(maxlen=window_size)
         self._count: int = 0
-        self._global_avg: float = 0.0
+        self.global_avg: float = 0.0
 
-    def update(self, value: float, iter: Optional[int] = None) -> None:
-        """Add a new scalar value produced at a certain iteration. If the length of queue
-        exceeds ``window_size``, the oldest element will be removed from the queue.
+    def update(self, value: float) -> None:
+        """Add a new scalar value. If the length of queue exceeds ``window_size``,
+        the oldest element will be removed from the queue.
         """
-        if iter is None:
-            iter = self._count
-        self._history.append((iter, value))
+        self._history.append(value)
         self._count += 1
-        self._global_avg += (value - self._global_avg) / self._count
+        self.global_avg += (value - self.global_avg) / self._count
 
     @property
-    def latest(self) -> Tuple[int, float]:
-        """Return (the latest iteration, the latest value) pair."""
+    def latest(self) -> float:
         return self._history[-1]
 
     @property
-    def median(self) -> Tuple[int, float]:
-        """Return (the latest iteration, the median of the latest ``window_size`` values) pair."""
-        return (self.latest[0], np.median([x[1] for x in self._history]))
+    def median(self) -> float:
+        return np.median(self._history)
 
     @property
-    def avg(self) -> Tuple[int, float]:
-        """Return (the latest iteration, the average of the latest ``window_size`` values) pair."""
-        return (self.latest[0], np.mean([x[1] for x in self._history]))
-
-    @property
-    def global_avg(self) -> Tuple[int, float]:
-        """Return (the latest iteration, the global average) pair."""
-        return (self.latest[0], self._global_avg)
+    def avg(self) -> float:
+        return np.mean(self._history)
 
 
 class MetricStorage:
     """The class stores the values of multiple metrics (some of them may be noisy, e.g., loss,
-    accuracy) in training process, and provides access to the smoothed values for better logging.
+    batch time) in training process, and provides access to the smoothed values for better logging.
 
     Example::
 
@@ -74,12 +62,9 @@ class MetricStorage:
 
     def __init__(self, window_size: int = 20) -> None:
         self._window_size = window_size
-        self._history: Dict[str, _SmoothedValue] = {}
+        self._history: Dict[str, SmoothedValue] = {}
         self._smooth: Dict[str, bool] = {}
-
-    def clear(self) -> None:
-        self._history.clear()
-        self._smooth.clear()
+        self._latest_iter: Dict[str, int] = {}
 
     def update(self, iter: Optional[int] = None, smooth: bool = True, **kwargs) -> None:
         """Add new scalar values of multiple metrics produced at a certain iteration.
@@ -97,13 +82,18 @@ class MetricStorage:
             else:
                 self._smooth[key] = smooth
             if key not in self._history:
-                self._history[key] = _SmoothedValue(window_size=self._window_size)
-            self._history[key].update(value, iter)
+                self._history[key] = SmoothedValue(window_size=self._window_size)
+                self._latest_iter[key] = -1
+            self._latest_iter[key] = iter if iter is not None else self._latest_iter[key] + 1
+            self._history[key].update(value)
 
     @property
     def global_avg(self) -> Dict[str, Tuple[int, float]]:
         """Return (the latest iteration, the global average) pairs of multiple metrics."""
-        return {key: smoothed_value.global_avg for key, smoothed_value in self._history.items()}
+        return {
+            key: (self._latest_iter[key], smoothed_value.global_avg)
+            for key, smoothed_value in self._history.items()
+        }
 
     @property
     def values_maybe_smooth(self) -> Dict[str, Tuple[int, float]]:
@@ -115,7 +105,10 @@ class MetricStorage:
                 (the latest iteration, the smoothed/latest value) pair.
         """
         return {
-            key: smoothed_value.median if self._smooth[key] else smoothed_value.latest
+            key: (
+                self._latest_iter[key],
+                smoothed_value.median if self._smooth[key] else smoothed_value.latest
+            )
             for key, smoothed_value in self._history.items()
         }
 

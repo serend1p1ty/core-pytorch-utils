@@ -242,11 +242,7 @@ def test_checkpoint_and_resume():
                     )
                 assert os.path.exists(os.path.join(dir1, "checkpoints/latest.pth"))
 
-                epoch_3_losses = [
-                    loss
-                    for (iter, loss) in trainer.metric_storage._history["total_loss"]._history
-                    if iter >= 30 and iter < 40
-                ]
+                total_losses = trainer.metric_storage._history["total_loss"]._history
 
                 epoch_3_smoothed_losses = []
                 for line in open(os.path.join(dir1, "log.txt")):
@@ -273,11 +269,7 @@ def test_checkpoint_and_resume():
                     assert os.path.exists(os.path.join(dir2, "checkpoints/epoch_3.pth"))
                     assert os.path.exists(os.path.join(dir2, "checkpoints/latest.pth"))
 
-                    epoch_3_losses_resume = [
-                        loss
-                        for (iter, loss) in trainer.metric_storage._history["total_loss"]._history
-                        if iter >= 30 and iter < 40
-                    ]
+                    total_losses_resume = trainer.metric_storage._history["total_loss"]._history
 
                     epoch_3_smoothed_losses_resume = []
                     for line in open(os.path.join(dir2, "log.txt")):
@@ -288,7 +280,7 @@ def test_checkpoint_and_resume():
 
                     # If the model/optimizer/lr_scheduler resumes correctly,
                     # the training losses should be the same.
-                    for loss1, loss2 in zip(epoch_3_losses, epoch_3_losses_resume):
+                    for loss1, loss2 in zip(total_losses, total_losses_resume):
                         if device == "cpu":
                             assert loss1 == loss2
                         else:
