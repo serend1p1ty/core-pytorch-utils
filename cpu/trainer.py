@@ -14,7 +14,7 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
-from .hooks import CheckpointerHook, HookBase, TensorboardWriterHook, TerminalWriterHook
+from .hooks import CheckpointerHook, HookBase, LoggerHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .metric_storage import MetricStorage
@@ -144,7 +144,7 @@ class Trainer:
         return osp.join(self.work_dir, "checkpoints")
 
     @property
-    def tb_dir(self) -> str:
+    def tb_log_dir(self) -> str:
         return osp.join(self.work_dir, "tb_logs")
 
     @property
@@ -177,7 +177,7 @@ class Trainer:
             f"\n{split_line}\n"
             f"Work directory: {self.work_dir}\n"
             f"Checkpoint directory: {self.ckpt_dir}\n"
-            f"Tensorboard directory: {self.tb_dir}\n"
+            f"Tensorboard directory: {self.tb_log_dir}\n"
             f"Log file: {self.log_file}\n"
             f"{split_line}"
         )
@@ -185,11 +185,7 @@ class Trainer:
     def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
         """Register hooks to the trainer.
 
-        We always keep :class:`TerminalWriterHook` as the first hook for accurate timing,
-        and keep :class:`TensorboardWriterHook` as the last hook to avoid losing any
-        information that should have been recorded.
-
-        The other hooks are executed in the order they are registered.
+        The hooks are executed in the order they are registered.
 
         Args:
             hooks (list[HookBase]): List of hooks.
@@ -201,13 +197,10 @@ class Trainer:
             # does not matter, but will cause memory leak if the involved objects contain __del__.
             # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
             h.trainer = weakref.proxy(self)
-            # keep `TerminalWriterHook` as the first hook
-            if isinstance(h, TerminalWriterHook):
-                self._hooks.insert(0, h)
-            # keep `TensorboardWriterHook` as the last hook
-            elif self._hooks and isinstance(self._hooks[-1], TensorboardWriterHook):
+            # We always keep :class:`LoggerHook` as the last hook to avoid losing any records
+            # that should have been logged. The order of other hooks remains the same.
+            if self._hooks and isinstance(self._hooks[-1], LoggerHook):
                 self._hooks.insert(len(self._hooks) - 1, h)
-            # the order of other hooks remains the same
             else:
                 self._hooks.append(h)
 
@@ -218,18 +211,20 @@ class Trainer:
     def _build_default_hooks(self) -> List[HookBase]:
         return [
             CheckpointerHook(self._checkpoint_period, self._max_num_checkpoints),
-            TerminalWriterHook(self._log_period),
-            TensorboardWriterHook(self._log_period, log_dir=self.tb_dir),
+            LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir),
         ]
 
-    def _write_metrics(self, loss_dict: Dict[str, torch.Tensor], data_time: float) -> None:
+    def _log_iter_metrics(self, loss_dict: Dict[str, torch.Tensor], data_time: float,
+                          iter_time: float, lr: float) -> None:
         """
         Args:
             loss_dict (dict): Dict of scalar losses.
             data_time (float): Time taken by the dataloader iteration.
+            iter_time (float): Time taken by one complete iteration.
+            lr (float): Learning rate used in this iteration.
         """
-        self.log(self.iter, data_time=data_time)
-        self.log(self.iter, lr=self.lr, smooth=False)
+        self.log(self.iter, data_time=data_time, iter_time=iter_time)
+        self.log(self.iter, lr=lr, smooth=False)
 
         loss_dict = {k: v.detach().cpu().item() for k, v in loss_dict.items()}
         loss_value = sum(loss_dict.values())
@@ -253,6 +248,9 @@ class Trainer:
         Subclass :class:`cpu.Trainer` and implement your :meth:`train_one_iter`
         to do something fancier.
         """
+        iter_start_time = time.perf_counter()
+        lr_this_iter = self.lr
+
         ######################
         # 1. Load batch data #
         ######################
@@ -275,8 +273,6 @@ class Trainer:
             loss_dict = {"total_loss": loss_dict}
         else:
             losses = sum(loss_dict.values())
-
-        self._write_metrics(loss_dict, data_time)
 
         ##########################
         # 3. Calculate gradients #
@@ -305,6 +301,8 @@ class Trainer:
         ###########################
         self.lr_scheduler.step()
 
+        self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time, lr_this_iter)
+
     def _train_one_epoch(self) -> None:
         # evaluation hook changes the model to `eval` mode after finishing epoch
         self.model.train()
@@ -327,7 +325,8 @@ class Trainer:
         self._call_hooks("after_train")
 
     def save_checkpoint(self, file_name: str) -> None:
-        """Dump checkpointables to a file.
+        """Save "epoch", "model", "optimizer", "lr_scheduler", "metric_storage",
+        "hooks" (optional), "grad_scaler" (optional).
 
         Args:
             filename (str): The name of the file to save.
@@ -337,7 +336,7 @@ class Trainer:
             "model": self.model_or_module.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
-            "metric_storage": self.metric_storage.state_dict(),
+            "metric_storage": self.metric_storage,
         }
         hook_states = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
         if hook_states:
@@ -353,39 +352,38 @@ class Trainer:
         dst_file = osp.join(self.ckpt_dir, "latest.pth")
         symlink(file_name, dst_file)
 
-    def load_checkpoint(
-        self,
-        path: str = "",
-        checkpoint: Dict[str, Any] = None,
-        which_to_load: Optional[List[str]] = None,
-    ):
+    def load_checkpoint(self, path: str = "", checkpoint: Dict[str, Any] = None):
         """Load the given checkpoint.
 
         Args:
             checkpoint (dict): The checkpoint to load.
             path (str): Path to the checkpoint. If empty, will not load anything.
                 `checkpoint` and `path` can only be specified one.
-            which_to_load (list[str]): List of checkpointable names to load.
-                If None, will load all possible checkpointables. Defaults to None.
         """
-        assert checkpoint or path, "Either `checkpoint` or `path` must be specified."
-        assert not (checkpoint and path), "`checkpoint` and `path` can only be specified one."
-
+        assert (checkpoint is not None) ^ (path != "")
         if path:
             logger.info(f"Loading checkpoint from {path} ...")
             checkpoint = torch.load(path, map_location="cpu")
 
+        # 1. load epoch
         self.start_epoch = checkpoint["epoch"] + 1
 
-        for entry in ["optimizer", "lr_scheduler", "metric_storage"]:
-            if which_to_load is None or entry in which_to_load:
-                getattr(self, entry).load_state_dict(checkpoint[entry])
+        # 2. load metric_storage
+        self.metric_storage = checkpoint["metric_storage"]
 
+        # 3. load optimizer
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
+
+        # 4. load lr_scheduler
+        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+
+        # 5. load grad scaler
         consistent_amp = not (self._enable_amp ^ ("grad_scaler" in checkpoint))
         assert consistent_amp, "Found inconsistent AMP training setting when loading checkpoint."
         if self._enable_amp:
             self._grad_scaler.load_state_dict(checkpoint["grad_scaler"])
 
+        # 6. load model
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
         if incompatible.missing_keys:
             logger.warning("Encounter missing keys when loading model weights:\n"
@@ -394,6 +392,7 @@ class Trainer:
             logger.warning("Encounter unexpected keys when loading model weights:\n"
                             f"{incompatible.unexpected_keys}")
 
+        # 7. load hooks
         hook_states = checkpoint.get("hooks", {})
         hook_names = [h.class_name for h in self._hooks if h.checkpointable]
         missing_keys = [name for name in hook_names if name not in hook_states]
