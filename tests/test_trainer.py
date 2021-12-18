@@ -159,7 +159,7 @@ def test_tensorboard_logging():
 
     class SimpleHook(HookBase):
         def after_iter(self) -> None:
-            self.log(self.trainer.iter, metric1=self.trainer.iter, smooth=False)
+            self.log(self.trainer.cur_iter, metric1=self.trainer.cur_iter, smooth=False)
 
     with tempfile.TemporaryDirectory() as dir:
         trainer = _create_new_trainer(max_epochs=9, work_dir=dir)

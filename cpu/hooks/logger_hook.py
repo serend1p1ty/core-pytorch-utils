@@ -54,7 +54,7 @@ class LoggerHook(HookBase):
         lr = self.metric_storage["lr"].latest if "lr" in self.metric_storage else None
 
         if iter_time is not None:
-            eta_seconds = iter_time * (self.trainer.max_iters - self.trainer.iter - 1)
+            eta_seconds = iter_time * (self.trainer.max_iters - self.trainer.cur_iter - 1)
             eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
         else:
             eta_string = None
