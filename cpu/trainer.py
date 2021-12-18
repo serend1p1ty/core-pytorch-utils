@@ -3,7 +3,7 @@ import os
 import os.path as osp
 import time
 import weakref
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from .hooks import CheckpointerHook, HookBase, LoggerHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
-from .metric_storage import MetricStorage
+from .history_buffer import HistoryBuffer
 from .misc import symlink
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,17 @@ class Trainer:
 
     If you want to do anything fancier than this, either subclass this class
     and implement your own :meth:`train_one_iter`, or write your own trainer.
+
+    .. code-block:: python
+
+        # create your model / optimizer / lr_scheduler / data_loader before using the trainer
+        model = ...
+        optimizer = ...
+        lr_scheduler = ...
+        data_loader = ...
+        # train 100 epochs
+        trainer = Trainer(model, optimizer, lr_scheduler, data_loader, max_epochs=100)
+        trainer.train()
 
     .. Note::
 
@@ -407,3 +418,71 @@ class Trainer:
                 if h.class_name == key and h.checkpointable:
                     h.load_state_dict(value)
                     break
+
+
+class MetricStorage(dict):
+    """The class stores the values of multiple metrics (some of them may be noisy, e.g., loss,
+    batch time) in training process, and provides access to the smoothed values for better logging.
+
+    The class is designed for automatic tensorboard logging. User should specify the ``smooth``
+    when calling :meth:`update`, in order to we can determine which metrics should be
+    smoothed when performing tensorboard logging.
+
+    Example::
+
+        >>> metric_storage = MetricStorage()
+        >>> metric_storage.update(iter=0, loss=0.2)
+        >>> metric_storage.update(iter=0, lr=0.01, smooth=False)
+        >>> metric_storage.update(iter=1, loss=0.1)
+        >>> metric_storage.update(iter=1, lr=0.001, smooth=False)
+        >>> # loss will be smoothed, but lr will not
+        >>> metric_storage.values_maybe_smooth
+        {"loss": (1, 0.15), "lr": (1, 0.001)}
+        >>> # like dict, can be indexed by string
+        >>> metric_storage["loss"].avg
+        0.15
+    """
+
+    def __init__(self, window_size: int = 20) -> None:
+        self._window_size = window_size
+        self._history: Dict[str, HistoryBuffer] = self
+        self._smooth: Dict[str, bool] = {}
+        self._latest_iter: Dict[str, int] = {}
+
+    def update(self, iter: Optional[int] = None, smooth: bool = True, **kwargs) -> None:
+        """Add new scalar values of multiple metrics produced at a certain iteration.
+
+        Args:
+            iter (int): The iteration in which these values are produced.
+                If None, use the built-in counter starting from 0.
+            smooth (bool): If True, return the smoothed values of these metrics when
+                calling :meth:`values_maybe_smooth`. Otherwise, return the latest values.
+                The same metric must have the same ``smooth`` in different calls to :meth:`update`.
+        """
+        for key, value in kwargs.items():
+            if key in self._smooth:
+                assert self._smooth[key] == smooth
+            else:
+                self._smooth[key] = smooth
+                self._history[key] = HistoryBuffer(window_size=self._window_size)
+                self._latest_iter[key] = -1
+            if iter is not None:
+                assert iter > self._latest_iter[key]
+                self._latest_iter[key] = iter
+            else:
+                self._latest_iter[key] += 1
+            self._history[key].update(value)
+
+    @property
+    def values_maybe_smooth(self) -> Dict[str, Tuple[int, float]]:
+        """Return the smoothed values or the latest values of multiple metrics.
+        The specific behavior depends on the ``smooth`` when updating metrics.
+
+        Returns:
+            dict[str -> (int, float)]: Mapping from metric name to its
+                (the latest iteration, the avg/latest value) pair.
+        """
+        return {
+            key: (self._latest_iter[key], his_buf.avg if self._smooth[key] else his_buf.latest)
+            for key, his_buf in self._history.items()
+        }

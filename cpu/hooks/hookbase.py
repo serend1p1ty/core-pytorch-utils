@@ -1,4 +1,4 @@
-from ..metric_storage import MetricStorage
+import cpu
 
 
 class HookBase:
@@ -24,19 +24,12 @@ class HookBase:
 
     .. Note::
 
-        1. In the hook method, users can access ``self.trainer`` to access more
-           properties about the context (e.g., model, optimizer, current iteration).
-        2. A hook that does something in :meth:`before_iter` can often be implemented
-           equivalently in :meth:`after_iter`. If the hook takes non-trivial time, it
-           is strongly recommended to implement the hook in :meth:`after_iter` instead
-           of :meth:`before_iter`. The convention is that :meth:`before_iter` should only
-           take negligible time. Following this convention will allow hooks that do care about
-           the difference between :meth:`before_iter` and :meth:`after_iter` (e.g., timer) to
-           function properly.
+        In the hook method, users can access ``self.trainer`` to access more
+        properties about the context (e.g., model, optimizer, current iteration).
     """
 
     # A weak reference to the trainer object. Set by the trainer when the hook is registered.
-    trainer = None
+    trainer: "cpu.Trainer" = None
 
     def before_train(self) -> None:
         """Called before the first iteration."""
@@ -75,7 +68,7 @@ class HookBase:
         return self.__class__.__name__
 
     @property
-    def metric_storage(self) -> MetricStorage:
+    def metric_storage(self) -> "cpu.MetricStorage":
         return self.trainer.metric_storage
 
     def log(self, *args, **kwargs) -> None:
