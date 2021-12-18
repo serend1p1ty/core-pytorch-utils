@@ -65,8 +65,8 @@ class LoggerHook(HookBase):
             max_mem_mb = None
 
         loss_strings = [
-            f"{key}: {smoothed_value.avg:.4g}"
-            for key, smoothed_value in self.metric_storage.items()
+            f"{key}: {his_buf.avg:.4g}"
+            for key, his_buf in self.metric_storage.items()
             if "loss" in key
         ]
 

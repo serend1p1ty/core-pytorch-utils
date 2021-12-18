@@ -3,16 +3,16 @@ from collections import deque
 from typing import Dict, Optional, Tuple
 
 
-class SmoothedValue:
+class HistoryBuffer:
     """The class tracks a series of values and provides access to the smoothed
     value over a window or the global average / sum of the series.
 
     Example::
 
-        >>> smoothed_value = SmoothedValue()
-        >>> smoothed_value.update(0.1)
-        >>> smoothed_value.update(0.2)
-        >>> smoothed_value.avg
+        >>> his_buf = HistoryBuffer()
+        >>> his_buf.update(0.1)
+        >>> his_buf.update(0.2)
+        >>> his_buf.avg
         0.15
     """
 
@@ -72,7 +72,7 @@ class MetricStorage(dict):
 
     def __init__(self, window_size: int = 20) -> None:
         self._window_size = window_size
-        self._history: Dict[str, SmoothedValue] = self
+        self._history: Dict[str, HistoryBuffer] = self
         self._smooth: Dict[str, bool] = {}
         self._latest_iter: Dict[str, int] = {}
 
@@ -91,7 +91,7 @@ class MetricStorage(dict):
                 assert self._smooth[key] == smooth
             else:
                 self._smooth[key] = smooth
-                self._history[key] = SmoothedValue(window_size=self._window_size)
+                self._history[key] = HistoryBuffer(window_size=self._window_size)
                 self._latest_iter[key] = -1
             if iter is not None:
                 assert iter > self._latest_iter[key]
@@ -113,6 +113,6 @@ class MetricStorage(dict):
                 (the latest iteration, the avg/latest value) pair.
         """
         return {
-            key: (self._latest_iter[key], smoothed_value.avg if self._smooth[key] else smoothed_value.latest)
-            for key, smoothed_value in self._history.items()
+            key: (self._latest_iter[key], his_buf.avg if self._smooth[key] else his_buf.latest)
+            for key, his_buf in self._history.items()
         }
