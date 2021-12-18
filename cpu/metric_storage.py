@@ -43,11 +43,11 @@ class SmoothedValue:
         return np.mean(self._history)
 
     @property
-    def global_avg(self):
+    def global_avg(self) -> float:
         return self._sum / self._count
 
     @property
-    def global_sum(self):
+    def global_sum(self) -> float:
         return self._sum
 
 
