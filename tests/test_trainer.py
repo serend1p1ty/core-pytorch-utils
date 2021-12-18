@@ -84,7 +84,7 @@ def test_basic_run_with_log_period():
         trainer.train()
 
         # check counter
-        assert trainer.iter == trainer.max_iters - 1
+        assert trainer.cur_iter == trainer.max_iters - 1
         assert trainer.inner_iter == trainer.epoch_len - 1
         assert trainer.epoch == trainer.max_epochs - 1
         assert trainer.lr_scheduler.last_epoch == trainer.max_iters
@@ -120,7 +120,7 @@ def test_basic_run_without_log_period():
         trainer.train()
 
         # check counter
-        assert trainer.iter == trainer.max_iters - 1
+        assert trainer.cur_iter == trainer.max_iters - 1
         assert trainer.inner_iter == trainer.epoch_len - 1
         assert trainer.epoch == trainer.max_epochs - 1
         assert trainer.lr_scheduler.last_epoch == trainer.max_iters

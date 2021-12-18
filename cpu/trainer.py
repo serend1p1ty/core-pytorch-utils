@@ -130,7 +130,7 @@ class Trainer:
         return self.max_epochs * self.epoch_len
 
     @property
-    def iter(self) -> int:
+    def cur_iter(self) -> int:
         """Returns the current iteration ranged in [0, max_iters - 1]."""
         return self.epoch * self.epoch_len + self.inner_iter
 
@@ -223,8 +223,8 @@ class Trainer:
             iter_time (float): Time taken by one complete iteration.
             lr (float): Learning rate used in this iteration.
         """
-        self.log(self.iter, data_time=data_time, iter_time=iter_time)
-        self.log(self.iter, lr=lr, smooth=False)
+        self.log(self.cur_iter, data_time=data_time, iter_time=iter_time)
+        self.log(self.cur_iter, lr=lr, smooth=False)
 
         loss_dict = {k: v.detach().cpu().item() for k, v in loss_dict.items()}
         loss_value = sum(loss_dict.values())
@@ -233,9 +233,9 @@ class Trainer:
                 f"Loss became infinite or NaN at epoch={self.epoch}! loss_dict = {loss_dict}."
             )
 
-        self.log(self.iter, total_loss=loss_value)
+        self.log(self.cur_iter, total_loss=loss_value)
         if len(loss_dict) > 1:
-            self.log(self.iter, **loss_dict)
+            self.log(self.cur_iter, **loss_dict)
 
     def train_one_iter(self) -> None:
         """Train one iteration.
