@@ -9,10 +9,13 @@ import mock
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+import tensorflow.compat.v1 as tf
 
 import cpu.logger as logger
 from cpu.hooks import EvalHook, HookBase
 from cpu.trainer import Trainer, MetricStorage
+
+tf.disable_v2_behavior()
 
 
 class _SimpleModel(nn.Module):
@@ -151,13 +154,6 @@ def test_basic_run_without_log_period():
 
 
 def test_tensorboard_logging():
-    try:
-        import tensorflow.compat.v1 as tf
-    except ImportError:
-        return
-    else:
-        tf.disable_v2_behavior()
-
     class SimpleHook(HookBase):
         def after_iter(self) -> None:
             self.log(self.trainer.cur_iter, metric1=self.trainer.cur_iter, smooth=False)
@@ -221,7 +217,9 @@ def test_tensorboard_logging():
 def test_checkpoint_and_resume():
     for enable_amp in [True, False]:
         for device in ["cuda", "cpu"]:
-            if enable_amp is True and device == "cpu":
+            if device == "cuda" and not torch.cuda.is_available():
+                continue
+            if enable_amp and device == "cpu":
                 continue
             with tempfile.TemporaryDirectory() as dir1:
                 trainer = _create_new_trainer(
