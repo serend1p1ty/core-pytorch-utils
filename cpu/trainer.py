@@ -159,10 +159,6 @@ class Trainer:
         return osp.join(self.work_dir, "tb_logs")
 
     @property
-    def log_file(self) -> str:
-        return osp.join(self.work_dir, "log.txt")
-
-    @property
     def model_or_module(self) -> nn.Module:
         if isinstance(self.model, (DistributedDataParallel, DataParallel)):
             return self.model.module
@@ -180,7 +176,7 @@ class Trainer:
     def _prepare_for_training(self) -> None:
         # setup the root logger of the `cpu` library to show
         # the log messages generated from this library
-        setup_logger("cpu", output=self.log_file)
+        setup_logger("cpu", output_dir=self.work_dir)
 
         os.makedirs(self.ckpt_dir, exist_ok=True)
         split_line = "-" * 50
@@ -189,7 +185,6 @@ class Trainer:
             f"Work directory: {self.work_dir}\n"
             f"Checkpoint directory: {self.ckpt_dir}\n"
             f"Tensorboard directory: {self.tb_log_dir}\n"
-            f"Log file: {self.log_file}\n"
             f"{split_line}"
         )
 

@@ -93,7 +93,7 @@ def test_basic_run_with_log_period():
         assert trainer.epoch == trainer.max_epochs - 1
         assert trainer.lr_scheduler.last_epoch == trainer.max_iters
 
-        log_file = os.path.join(dir, "log.txt")
+        log_file = os.path.join(dir, "log_rank0.txt")
         assert os.path.exists(log_file)
         log_content = open(log_file).readlines()
         assert len(log_content) != 0
@@ -129,7 +129,7 @@ def test_basic_run_without_log_period():
         assert trainer.epoch == trainer.max_epochs - 1
         assert trainer.lr_scheduler.last_epoch == trainer.max_iters
 
-        log_file = os.path.join(dir, "log.txt")
+        log_file = os.path.join(dir, "log_rank0.txt")
         assert os.path.exists(log_file)
         log_content = open(log_file).readlines()
         assert len(log_content) != 0
@@ -244,7 +244,7 @@ def test_checkpoint_and_resume():
                 total_losses = trainer.metric_storage._history["total_loss"]._history
 
                 epoch_3_smoothed_losses = []
-                for line in open(os.path.join(dir1, "log.txt")):
+                for line in open(os.path.join(dir1, "log_rank0.txt")):
                     if "Epoch: [3]" not in line:
                         continue
                     res = re.findall(r"total_loss: \S+", line)
@@ -271,7 +271,7 @@ def test_checkpoint_and_resume():
                     total_losses_resume = trainer.metric_storage._history["total_loss"]._history
 
                     epoch_3_smoothed_losses_resume = []
-                    for line in open(os.path.join(dir2, "log.txt")):
+                    for line in open(os.path.join(dir2, "log_rank0.txt")):
                         if "Epoch: [3]" not in line:
                             continue
                         res = re.findall(r"total_loss: \S+", line)
