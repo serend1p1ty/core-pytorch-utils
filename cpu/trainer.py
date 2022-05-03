@@ -70,9 +70,8 @@ class Trainer:
         log_period: int = 50,
         clip_grad_norm: float = 0.0,
         enable_amp=False,
-        warmup_method: Optional[str] = None,
-        warmup_iters: int = 1000,
-        warmup_factor: float = 0.001,
+        warmup_iters: int = 0,
+        warmup_factor: float = 0.0,
     ):
         """
         Args:
@@ -91,18 +90,15 @@ class Trainer:
                 Defaults to 0.
             enable_amp (bool): Enable the Automatic Mixed Precision (AMP) training.
                 Defaults to False.
-            warmup_method (str): Type of warmup used. It can be None (no warmup),
-                "constant", "linear" or "exp". Defaults to None.
             warmup_iters (int): The number of iterations that warmup lasts. Defaults to 1000.
             warmup_factor (float): LR used at the beginning of warmup equals to
                 ``warmup_factor * initial_lr``. Defaults to 0.001.
         """
         self.model = model
         self.optimizer = optimizer
-        # convert epoch-based scheduler to iteration-based scheduler
         self.lr_scheduler = LRWarmupScheduler(
-            lr_scheduler, len(data_loader), warmup_method, warmup_iters, warmup_factor
-        )
+            torch_scheduler=lr_scheduler, by_epoch=True, epoch_len=len(data_loader),
+            warmup_t=warmup_iters, warmup_by_epoch=False, warmup_mode="factor", warmup_factor=warmup_factor)
         self.data_loader = data_loader
         self.work_dir = work_dir
         self.metric_storage = MetricStorage()
@@ -305,7 +301,7 @@ class Trainer:
         ###########################
         # 5. Adjust learning rate #
         ###########################
-        self.lr_scheduler.step()
+        self.lr_scheduler.iter_update()
 
         self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time, lr_this_iter)
 
@@ -318,6 +314,7 @@ class Trainer:
             self._call_hooks("after_iter")
         # update data iterator to avoid `StopIteration` exception
         self._data_iter = iter(self.data_loader)
+        self.lr_scheduler.epoch_update()
 
     def train(self) -> None:
         """Start training."""

@@ -91,7 +91,7 @@ def test_basic_run_with_log_period():
         assert trainer.cur_iter == trainer.max_iters - 1
         assert trainer.inner_iter == trainer.epoch_len - 1
         assert trainer.epoch == trainer.max_epochs - 1
-        assert trainer.lr_scheduler.last_epoch == trainer.max_iters
+        assert trainer.lr_scheduler.last_iter == trainer.max_iters
 
         log_file = os.path.join(dir, "log_rank0.txt")
         assert os.path.exists(log_file)
@@ -127,7 +127,7 @@ def test_basic_run_without_log_period():
         assert trainer.cur_iter == trainer.max_iters - 1
         assert trainer.inner_iter == trainer.epoch_len - 1
         assert trainer.epoch == trainer.max_epochs - 1
-        assert trainer.lr_scheduler.last_epoch == trainer.max_iters
+        assert trainer.lr_scheduler.last_iter == trainer.max_iters
 
         log_file = os.path.join(dir, "log_rank0.txt")
         assert os.path.exists(log_file)
@@ -232,7 +232,7 @@ def test_checkpoint_and_resume():
                 trainer.train()
 
                 assert (trainer.lr - 0.01) < 1e-7
-                assert trainer.lr_scheduler.last_epoch == 40
+                assert trainer.lr_scheduler.last_iter == 40
 
                 # test periodically checkpointing
                 for should_ckpt_epoch in [2, 3]:
@@ -261,7 +261,7 @@ def test_checkpoint_and_resume():
                     )
                     trainer.load_checkpoint(os.path.join(dir1, "checkpoints/epoch_2.pth"))
                     assert (trainer.lr - 0.01) < 1e-7
-                    assert trainer.lr_scheduler.last_epoch == 30
+                    assert trainer.lr_scheduler.last_iter == 30
                     trainer.train()
 
                     # test periodically checkpointing
