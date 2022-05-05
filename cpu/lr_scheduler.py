@@ -21,30 +21,28 @@ class LRWarmupScheduler:
         self.base_lrs = [param_group["lr"] for param_group in self.param_groups]
         # pre-compute the regular lr if no warmup is performed
         max_t = warmup_t // epoch_len if by_epoch and not warmup_by_epoch else warmup_t
-        self.regular_lrs_per_t, self.max_t_state = self._pre_compute_regular_lrs_per_t(max_t)
+        self.regular_lrs_per_t = self._pre_compute_regular_lrs_per_t(max_t)
 
         self.last_iter = self.last_epoch = 0
         self.in_iter_warmup = False
 
-        if by_epoch:
+        if warmup_by_epoch:
+            assert by_epoch
+        if by_epoch and not warmup_by_epoch:
             assert epoch_len is not None
-        else:
-            assert not warmup_by_epoch
         if self._is_plateau:
             assert by_epoch
         if warmup_t > 0:
             if warmup_mode == "fix":
                 assert isinstance(warmup_init_lr, float)
-                self.slopes = [(base_lr - warmup_init_lr) / warmup_t for base_lr in self.base_lrs]
                 self._set_lrs(warmup_init_lr)
             elif warmup_mode == "factor":
                 assert isinstance(warmup_factor, float)
                 self._set_lrs([base_lr * warmup_factor for base_lr in self.base_lrs])
             elif warmup_mode == "auto":
                 assert isinstance(warmup_factor, float)
-                self.start = [base_lr * warmup_factor for base_lr in self.base_lrs]
-                self.end = self.regular_lrs_per_t[-1]
-                self._set_lrs(self.start)
+                self.warmup_end_lrs = self.regular_lrs_per_t[-1]
+                self._set_lrs([base_lr * warmup_factor for base_lr in self.base_lrs])
             else:
                 raise ValueError(f"Invalid warmup mode: {warmup_mode}")
 
@@ -54,30 +52,25 @@ class LRWarmupScheduler:
 
     def _pre_compute_regular_lrs_per_t(self, max_t):
         regular_lrs_per_t = [self.base_lrs]
-        init_state = self.torch_scheduler.state_dict()
         if self._is_plateau:
-            return regular_lrs_per_t * (max_t + 1), init_state
+            return regular_lrs_per_t * (max_t + 1)
         for _ in range(max_t):
             self.torch_scheduler.step()
             regular_lrs_per_t.append([param_group["lr"] for param_group in self.param_groups])
-        self._set_lrs(self.base_lrs)
-        max_t_state = self.torch_scheduler.state_dict()
-        self.torch_scheduler.load_state_dict(init_state)
-        return regular_lrs_per_t, max_t_state
+        return regular_lrs_per_t
 
     def _get_warmup_lrs(self, t, regular_lrs):
+        alpha = t / self.warmup_t
         if self.warmup_mode == "fix":
-            return [self.warmup_init_lr + t * slope for slope in self.slopes]
+            return [self.warmup_init_lr * (1 - alpha) + base_lr * alpha for base_lr in self.base_lrs]
         elif self.warmup_mode == "factor":
-            alpha = t / self.warmup_t
             factor = self.warmup_factor * (1 - alpha) + alpha
             return [lr * factor for lr in regular_lrs]
         else:
-            lrs = []
-            alpha = t / self.warmup_t
-            for x, y in zip(self.start, self.end):
-                lrs.append(x * (1 - alpha) + y * alpha)
-            return lrs
+            return [
+                base_lr * self.warmup_factor * (1 - alpha) + end_lr * alpha
+                for base_lr, end_lr in zip(self.base_lrs, self.warmup_end_lrs)
+            ]
 
     def _set_lrs(self, lrs):
         if not isinstance(lrs, (list, tuple)):
@@ -94,7 +87,6 @@ class LRWarmupScheduler:
             self._set_lrs(self._get_warmup_lrs(self.last_epoch, self.regular_lrs_per_t[self.last_epoch]))
         elif self.warmup_by_epoch and self.last_epoch == self.warmup_t:
             self._set_lrs(self.regular_lrs_per_t[-1])
-            self.torch_scheduler.load_state_dict(self.max_t_state)
         elif not self.in_iter_warmup:
             if self._is_plateau:
                 self.torch_scheduler.step(metric)
@@ -112,7 +104,6 @@ class LRWarmupScheduler:
             self._set_lrs(self._get_warmup_lrs(self.last_iter, self.regular_lrs_per_t[t]))
         elif self.last_iter == self.warmup_t:
             self._set_lrs(self.regular_lrs_per_t[-1])
-            self.torch_scheduler.load_state_dict(self.max_t_state)
         else:
             self.in_iter_warmup = False
             if not self.by_epoch:
