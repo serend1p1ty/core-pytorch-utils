@@ -14,7 +14,7 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
-from .hooks import CheckpointerHook, HookBase, LoggerHook
+from .hooks import CheckpointerHook, HookBase, LoggerHook, LRUpdateHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .history_buffer import HistoryBuffer
@@ -30,12 +30,12 @@ class Trainer:
     single-cost single-optimizer single-data-source epoch-based optimization
     It assumes that every step, you:
 
-    1. Compute the loss with a data from the data_loader.
-    2. Compute the gradients with the above loss.
-    3. Update the model with the optimizer.
-    4. Adjust the learning rate.
+    1. Load a batch from the data_loader.
+    2. Compute the loss with the batch.
+    3. Compute the gradients with the above loss.
+    4. Update the model with the optimizer.
 
-    All other tasks during training (checkpointing, logging, evaluation) are maintained
+    All other tasks during training (lr update, checkpointing, logging, evaluation) are maintained
     by hooks, which can be registered by :meth:`register_hooks`.
 
     If you want to do anything fancier than this, either subclass this class
@@ -69,8 +69,12 @@ class Trainer:
         checkpoint_period: int = 1,
         log_period: int = 50,
         clip_grad_norm: float = 0.0,
-        enable_amp=False,
-        warmup_iters: int = 0,
+        enable_amp: bool = False,
+        # settings related to lr warmup
+        by_epoch: bool = True,
+        warmup_t: int = 0,
+        warmup_by_epoch: bool = False,
+        warmup_mode: str = "fix",
         warmup_factor: float = 0.0,
     ):
         """
@@ -90,15 +94,15 @@ class Trainer:
                 Defaults to 0.
             enable_amp (bool): Enable the Automatic Mixed Precision (AMP) training.
                 Defaults to False.
-            warmup_iters (int): The number of iterations that warmup lasts. Defaults to 1000.
-            warmup_factor (float): LR used at the beginning of warmup equals to
-                ``warmup_factor * initial_lr``. Defaults to 0.001.
+            by_epoch, warmup_t, warmup_by_epoch, warmup_mode, warmup_factor: Refer to the
+                documentation of lr_scheduler.py
         """
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = LRWarmupScheduler(
-            torch_scheduler=lr_scheduler, by_epoch=True, epoch_len=len(data_loader),
-            warmup_t=warmup_iters, warmup_by_epoch=False, warmup_mode="factor", warmup_factor=warmup_factor)
+            torch_scheduler=lr_scheduler, by_epoch=by_epoch, epoch_len=len(data_loader),
+            warmup_t=warmup_t, warmup_by_epoch=warmup_by_epoch, warmup_mode=warmup_mode,
+            warmup_factor=warmup_factor)
         self.data_loader = data_loader
         self.work_dir = work_dir
         self.metric_storage = MetricStorage()
@@ -212,6 +216,7 @@ class Trainer:
 
     def _build_default_hooks(self) -> List[HookBase]:
         return [
+            LRUpdateHook(),  # should be the first one
             CheckpointerHook(self._checkpoint_period, self._max_num_checkpoints),
             LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir),
         ]
@@ -251,7 +256,6 @@ class Trainer:
         to do something fancier.
         """
         iter_start_time = time.perf_counter()
-        lr_this_iter = self.lr
 
         ######################
         # 1. Load batch data #
@@ -298,12 +302,7 @@ class Trainer:
         else:
             self.optimizer.step()
 
-        ###########################
-        # 5. Adjust learning rate #
-        ###########################
-        self.lr_scheduler.iter_update()
-
-        self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time, lr_this_iter)
+        self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time, self.lr)
 
     def _train_one_epoch(self) -> None:
         # evaluation hook changes the model to `eval` mode after finishing epoch
@@ -314,7 +313,6 @@ class Trainer:
             self._call_hooks("after_iter")
         # update data iterator to avoid `StopIteration` exception
         self._data_iter = iter(self.data_loader)
-        self.lr_scheduler.epoch_update()
 
     def train(self) -> None:
         """Start training."""
