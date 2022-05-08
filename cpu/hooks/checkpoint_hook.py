@@ -14,9 +14,9 @@ class CheckpointerHook(HookBase):
     def __init__(self, period: int, max_to_keep: Optional[int] = None) -> None:
         """
         Args:
-            period (int): The period to save checkpoint.
+            period (int): Save checkpoint every ``period`` epochs.
             max_to_keep (int): Maximum number of most current checkpoints to keep,
-                previous checkpoints will be deleted.
+                previous checkpoints will be deleted. If None, save all checkpoints.
         """
         self._period = period
         assert max_to_keep is None or max_to_keep > 0

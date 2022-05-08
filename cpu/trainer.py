@@ -38,8 +38,8 @@ class Trainer:
     All other tasks during training (lr update, checkpointing, logging, evaluation) are maintained
     by hooks, which can be registered by :meth:`register_hooks`.
 
-    If you want to do anything fancier than this, either subclass this class
-    and implement your own :meth:`train_one_iter`, or write your own trainer.
+    If you want to do anything fancier than this, subclass this class
+    and implement your own :meth:`train_one_iter`.
 
     .. code-block:: python
 
@@ -70,11 +70,12 @@ class Trainer:
         log_period: int = 50,
         clip_grad_norm: float = 0.0,
         enable_amp: bool = False,
-        # settings related to lr warmup
+        # the following settings are related to lr warmup
         by_epoch: bool = True,
         warmup_t: int = 0,
         warmup_by_epoch: bool = False,
         warmup_mode: str = "fix",
+        warmup_init_lr: float = 0.0,
         warmup_factor: float = 0.0,
     ):
         """
@@ -94,15 +95,14 @@ class Trainer:
                 Defaults to 0.
             enable_amp (bool): Enable the Automatic Mixed Precision (AMP) training.
                 Defaults to False.
-            by_epoch, warmup_t, warmup_by_epoch, warmup_mode, warmup_factor: Refer to the
+            by_epoch, warmup_t, warmup_by_epoch, warmup_mode, warmup_init_lr, warmup_factor: Refer to the
                 documentation of lr_scheduler.py
         """
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = LRWarmupScheduler(
-            torch_scheduler=lr_scheduler, by_epoch=by_epoch, epoch_len=len(data_loader),
-            warmup_t=warmup_t, warmup_by_epoch=warmup_by_epoch, warmup_mode=warmup_mode,
-            warmup_factor=warmup_factor)
+            lr_scheduler, by_epoch, len(data_loader), warmup_t,
+            warmup_by_epoch, warmup_mode, warmup_init_lr, warmup_factor)
         self.data_loader = data_loader
         self.work_dir = work_dir
         self.metric_storage = MetricStorage()
@@ -152,10 +152,12 @@ class Trainer:
 
     @property
     def ckpt_dir(self) -> str:
+        """The directory to save checkpoints. Overwrite this method to change the path."""
         return osp.join(self.work_dir, "checkpoints")
 
     @property
     def tb_log_dir(self) -> str:
+        """The directory to save tensorboard files. Overwrite this method to change the path."""
         return osp.join(self.work_dir, "tb_logs")
 
     @property
@@ -263,7 +265,11 @@ class Trainer:
         # we choose to read data by iterator instead of `for data in data_loader`
         # in order to calculate the data loading time
         start = time.perf_counter()
-        batch = next(self._data_iter)
+        try:
+            batch = next(self._data_iter)
+        except StopIteration:
+            self._data_iter = iter(self.data_loader)
+            batch = next(self._data_iter)
         data_time = time.perf_counter() - start
 
         #####################
@@ -311,8 +317,6 @@ class Trainer:
             self._call_hooks("before_iter")
             self.train_one_iter()
             self._call_hooks("after_iter")
-        # update data iterator to avoid `StopIteration` exception
-        self._data_iter = iter(self.data_loader)
 
     def train(self) -> None:
         """Start training."""
