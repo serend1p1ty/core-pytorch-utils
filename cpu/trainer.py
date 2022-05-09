@@ -357,45 +357,63 @@ class Trainer:
         dst_file = osp.join(self.ckpt_dir, "latest.pth")
         symlink(file_name, dst_file)
 
-    def load_checkpoint(self, path: str = "", checkpoint: Dict[str, Any] = None):
-        """Load the given checkpoint.
+    def resume_or_load(self, path: str = "", checkpoint: Dict[str, Any] = None,
+                       resume: bool = True, auto_resume: bool = False):
+        """Resume training or load model weights only. Resuming means
+        loading all available states (eg. model, optimizer and scheduler).
 
         Args:
-            checkpoint (dict): The checkpoint to load.
-            path (str): Path to the checkpoint. If empty, will not load anything.
-                `checkpoint` and `path` can only be specified one.
+            path (str): Path to the checkpoint.
+            checkpoint (dict): The checkpoint to load. Only one of
+                `checkpoint` and `path` can be specified.
+            resume (bool): If True, load all available states to resume training.
+                Otherwise, only load model weights.
+            auto_resume (bool): If True, automatically resume from the latest checkpoint.
+                Priority: auto resume > resume.
         """
+        if auto_resume:
+            latest_ckpt = osp.join(self.ckpt_dir, "latest.pth")
+            if not os.path.exists(latest_ckpt):
+                logger.warning(f"Not found {latest_ckpt}, ignoring auto resume.")
+                return
+            else:
+                logger.info(f"Found {latest_ckpt} to auto resume from.")
+                path = latest_ckpt
+                resume = True
         assert (checkpoint is not None) ^ (path != "")
         if path:
             logger.info(f"Loading checkpoint from {path} ...")
             checkpoint = torch.load(path, map_location="cpu")
 
-        # 1. load epoch
+        # 1. load model
+        incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
+        if incompatible.missing_keys:
+            logger.warning("Encounter missing keys when loading model weights:\n"
+                          f"{incompatible.missing_keys}")
+        if incompatible.unexpected_keys:
+            logger.warning("Encounter unexpected keys when loading model weights:\n"
+                          f"{incompatible.unexpected_keys}")
+
+        if not resume:
+            return
+
+        # 2. load epoch
         self.start_epoch = checkpoint["epoch"] + 1
 
-        # 2. load metric_storage
+        # 3. load metric_storage
         self.metric_storage = checkpoint["metric_storage"]
 
-        # 3. load optimizer
+        # 4. load optimizer
         self.optimizer.load_state_dict(checkpoint["optimizer"])
 
-        # 4. load lr_scheduler
+        # 5. load lr_scheduler
         self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
 
-        # 5. load grad scaler
+        # 6. load grad scaler
         consistent_amp = not (self._enable_amp ^ ("grad_scaler" in checkpoint))
         assert consistent_amp, "Found inconsistent AMP training setting when loading checkpoint."
         if self._enable_amp:
             self._grad_scaler.load_state_dict(checkpoint["grad_scaler"])
-
-        # 6. load model
-        incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
-        if incompatible.missing_keys:
-            logger.warning("Encounter missing keys when loading model weights:\n"
-                            f"{incompatible.missing_keys}")
-        if incompatible.unexpected_keys:
-            logger.warning("Encounter unexpected keys when loading model weights:\n"
-                            f"{incompatible.unexpected_keys}")
 
         # 7. load hooks
         hook_states = checkpoint.get("hooks", {})

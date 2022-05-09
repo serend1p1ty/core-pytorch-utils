@@ -259,7 +259,7 @@ def test_checkpoint_and_resume():
                         enable_amp=enable_amp,
                         device=device,
                     )
-                    trainer.load_checkpoint(os.path.join(dir1, "checkpoints/epoch_2.pth"))
+                    trainer.resume_or_load(os.path.join(dir1, "checkpoints/epoch_2.pth"))
                     assert (trainer.lr - 0.01) < 1e-7
                     assert trainer.lr_scheduler.last_iter == 30
                     trainer.train()
