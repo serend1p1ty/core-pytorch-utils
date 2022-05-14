@@ -259,7 +259,7 @@ def test_checkpoint_and_resume():
                         enable_amp=enable_amp,
                         device=device,
                     )
-                    trainer.resume_or_load(os.path.join(dir1, "checkpoints/epoch_2.pth"))
+                    trainer.load_checkpoint(os.path.join(dir1, "checkpoints/epoch_2.pth"))
                     assert (trainer.lr - 0.01) < 1e-7
                     assert trainer.lr_scheduler.last_iter == 30
                     trainer.train()
@@ -294,8 +294,8 @@ def test_checkpoint_and_resume():
 
 
 def test_eval_hook():
-    with tempfile.TemporaryDirectory() as dir:
-        for total_epochs, period, eval_count in [(30, 15, 2), (31, 15, 3), (20, 0, 1)]:
+    for total_epochs, period, eval_count in [(30, 15, 2), (31, 15, 3), (20, 0, 1)]:
+        with tempfile.TemporaryDirectory() as dir:
             test_func = mock.Mock(return_value={"metric": 3.0})
             trainer = _create_new_trainer(max_epochs=total_epochs, work_dir=dir)
             trainer.register_hooks([EvalHook(period, test_func)])

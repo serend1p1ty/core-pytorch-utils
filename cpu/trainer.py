@@ -121,12 +121,7 @@ class Trainer:
         self._clip_grad_norm = clip_grad_norm
         self._enable_amp = enable_amp
 
-        self.register_hooks(self._build_default_hooks())
-        logger.info(f"Registered default hooks: {self.registered_hook_names}")
-
-        if self._enable_amp:
-            logger.info("Automatic Mixed Precision (AMP) training is on.")
-            self._grad_scaler = GradScaler()
+        self._default_setup()
 
     @property
     def lr(self) -> float:
@@ -175,10 +170,22 @@ class Trainer:
         """Update metrics."""
         self.metric_storage.update(*args, **kwargs)
 
-    def _prepare_for_training(self) -> None:
+    def _default_setup(self) -> None:
         # setup the root logger of the `cpu` library to show
         # the log messages generated from this library
         setup_logger("cpu", output_dir=self.work_dir)
+
+        default_hooks = [
+            LRUpdateHook(),  # should be the first one
+            CheckpointerHook(self._checkpoint_period, self._max_num_checkpoints),
+            LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir),
+        ]
+        self.register_hooks(default_hooks)
+        logger.info(f"Registered default hooks: {self.registered_hook_names}")
+
+        if self._enable_amp:
+            logger.info("Automatic Mixed Precision (AMP) training is on.")
+            self._grad_scaler = GradScaler()
 
         os.makedirs(self.ckpt_dir, exist_ok=True)
         split_line = "-" * 50
@@ -216,13 +223,6 @@ class Trainer:
         for h in self._hooks:
             getattr(h, stage)()
 
-    def _build_default_hooks(self) -> List[HookBase]:
-        return [
-            LRUpdateHook(),  # should be the first one
-            CheckpointerHook(self._checkpoint_period, self._max_num_checkpoints),
-            LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir),
-        ]
-
     def _log_iter_metrics(self, loss_dict: Dict[str, torch.Tensor], data_time: float,
                           iter_time: float, lr: float) -> None:
         """
@@ -248,11 +248,6 @@ class Trainer:
 
     def train_one_iter(self) -> None:
         """Train one iteration.
-
-        .. Note::
-
-            Standard PyTorch LR scheduler is epoch-based and called at the end of epoch.
-            However, our scheduler is iteration-based, so it should be called after every iteration.
 
         Subclass :class:`cpu.Trainer` and implement your :meth:`train_one_iter`
         to do something fancier.
@@ -310,7 +305,7 @@ class Trainer:
 
         self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time, self.lr)
 
-    def _train_one_epoch(self) -> None:
+    def train_one_epoch(self) -> None:
         # evaluation hook changes the model to `eval` mode after finishing epoch
         self.model.train()
         for self.inner_iter in range(self.epoch_len):
@@ -318,23 +313,36 @@ class Trainer:
             self.train_one_iter()
             self._call_hooks("after_iter")
 
-    def train(self) -> None:
-        """Start training."""
+    def train(self, resume_from_checkpoint: Optional[str] = None, auto_resume: bool = True) -> None:
+        """Start training.
+
+        If `resume_from_checkpoint` is specified, resume from the given checkpoint.
+        Otherwise, auto resume from the latest checkpoint.
+
+        Args:
+            resume_from_checkpoint (str): Path to the checkpoint. Defaults to None.
+            auto_resume (bool): Defaults to True.
+        """
         logger.info(f"Start training from epoch {self.start_epoch}")
-        self._prepare_for_training()
+
+        if resume_from_checkpoint is not None:
+            self.load_checkpoint(path=resume_from_checkpoint)
+        else:
+            self.load_checkpoint(auto_resume=auto_resume)
+
         self._call_hooks("before_train")
         for self.epoch in range(self.start_epoch, self.max_epochs):
             self._call_hooks("before_epoch")
-            self._train_one_epoch()
+            self.train_one_epoch()
             self._call_hooks("after_epoch")
         self._call_hooks("after_train")
 
     def save_checkpoint(self, file_name: str) -> None:
-        """Save "epoch", "model", "optimizer", "lr_scheduler", "metric_storage",
-        "hooks" (optional), "grad_scaler" (optional).
+        """Save training states: `epoch`, `model`, `optimizer`, `lr_scheduler`,
+        `metric_storage`, `hooks` (optional), `grad_scaler` (optional).
 
         Args:
-            filename (str): The name of the file to save.
+            filename (str): The checkpoint will be save as "ckpt_dir/filename".
         """
         data = {
             "epoch": self.epoch,
@@ -353,39 +361,34 @@ class Trainer:
         logger.info(f"Saving checkpoint to {file_path}")
         torch.save(data, file_path)
 
-        # tag last checkpoint
+        # tag the latest checkpoint
         dst_file = osp.join(self.ckpt_dir, "latest.pth")
         symlink(file_name, dst_file)
 
-    def resume_or_load(self, path: str = "", checkpoint: Dict[str, Any] = None,
-                       resume: bool = True, auto_resume: bool = False):
-        """Resume training or load model weights only. Resuming means
-        loading all available states (eg. model, optimizer and scheduler).
-
+    def load_checkpoint(self, path: Optional[str] = None, auto_resume: bool = False):
+        """
         Args:
             path (str): Path to the checkpoint.
-            checkpoint (dict): The checkpoint to load. Only one of
-                `checkpoint` and `path` can be specified.
-            resume (bool): If True, load all available states to resume training.
-                Otherwise, only load model weights.
             auto_resume (bool): If True, automatically resume from the latest checkpoint.
-                Priority: auto resume > resume.
         """
-        if auto_resume:
+        if path is None and auto_resume:
             latest_ckpt = osp.join(self.ckpt_dir, "latest.pth")
             if not os.path.exists(latest_ckpt):
-                logger.warning(f"Not found {latest_ckpt}, ignoring auto resume.")
-                return
+                logger.warning(f"Not found {latest_ckpt} to auto resume from.")
             else:
                 logger.info(f"Found {latest_ckpt} to auto resume from.")
                 path = latest_ckpt
-                resume = True
-        assert (checkpoint is not None) ^ (path != "")
         if path:
             logger.info(f"Loading checkpoint from {path} ...")
             checkpoint = torch.load(path, map_location="cpu")
+        else:
+            logger.info(f"Skip loading checkpoint.")
+            return
 
-        # 1. load model
+        # 1. load epoch
+        self.start_epoch = checkpoint["epoch"] + 1
+
+        # 2. load model
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
         if incompatible.missing_keys:
             logger.warning("Encounter missing keys when loading model weights:\n"
@@ -393,12 +396,6 @@ class Trainer:
         if incompatible.unexpected_keys:
             logger.warning("Encounter unexpected keys when loading model weights:\n"
                           f"{incompatible.unexpected_keys}")
-
-        if not resume:
-            return
-
-        # 2. load epoch
-        self.start_epoch = checkpoint["epoch"] + 1
 
         # 3. load metric_storage
         self.metric_storage = checkpoint["metric_storage"]
