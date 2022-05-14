@@ -7,6 +7,7 @@ import math
 
 import mock
 import torch
+import numpy as np
 from torch import nn
 from torch.utils.data import DataLoader
 import tensorflow.compat.v1 as tf
@@ -82,136 +83,169 @@ def _create_new_trainer(
     return trainer
 
 
-def test_basic_run_with_log_period():
-    with tempfile.TemporaryDirectory() as dir:
-        trainer = _create_new_trainer(log_period=4, work_dir=dir)
-        trainer.train()
+def test_basic_run():
+    for log_period in [1, 4]:
+        with tempfile.TemporaryDirectory() as dir:
+            trainer = _create_new_trainer(log_period=log_period, work_dir=dir)
+            trainer.train()
 
-        # check counter
-        assert trainer.cur_iter == trainer.max_iters - 1
-        assert trainer.inner_iter == trainer.epoch_len - 1
-        assert trainer.epoch == trainer.max_epochs - 1
-        assert trainer.lr_scheduler.last_iter == trainer.max_iters
+            # check counter
+            assert trainer.cur_iter == trainer.max_iters - 1
+            assert trainer.inner_iter == trainer.epoch_len - 1
+            assert trainer.epoch == trainer.max_epochs - 1
+            assert trainer.lr_scheduler.last_iter == trainer.max_iters
+            assert trainer.lr_scheduler.last_epoch == trainer.max_epochs
 
-        log_file = os.path.join(dir, "log_rank0.txt")
-        assert os.path.exists(log_file)
-        log_content = open(log_file).readlines()
-        assert len(log_content) != 0
+            log_file = os.path.join(dir, "log_rank0.txt")
+            assert os.path.exists(log_file)
+            log_content = open(log_file).readlines()
+            assert len(log_content) != 0
 
-        # check lr/logging period/ETA
-        for epoch in range(10):
-            if epoch >= 0 and epoch < 3:
-                lr = 0.1
-            elif epoch < 6:
-                lr = 0.01
-            elif epoch < 9:
-                lr = 0.001
-            else:
-                lr = 0.0001
-            cnt = 0
-            for line in log_content:
-                if f"Epoch: [{epoch}]" in line:
-                    assert f"lr: {lr:.4g}" in line
-                    assert "[3/9]" in line or "[7/9]" in line
-                    assert "ETA: " in line
-                    cnt += 1
-            assert cnt == 2
-
-
-def test_basic_run_without_log_period():
-    with tempfile.TemporaryDirectory() as dir:
-        trainer = _create_new_trainer(work_dir=dir)
-        trainer.train()
-
-        # check counter
-        assert trainer.cur_iter == trainer.max_iters - 1
-        assert trainer.inner_iter == trainer.epoch_len - 1
-        assert trainer.epoch == trainer.max_epochs - 1
-        assert trainer.lr_scheduler.last_iter == trainer.max_iters
-
-        log_file = os.path.join(dir, "log_rank0.txt")
-        assert os.path.exists(log_file)
-        log_content = open(log_file).readlines()
-        assert len(log_content) != 0
-
-        # check lr/ETA
-        for epoch in range(10):
-            if epoch >= 0 and epoch < 3:
-                lr = 0.1
-            elif epoch < 6:
-                lr = 0.01
-            elif epoch < 9:
-                lr = 0.001
-            else:
-                lr = 0.0001
-            iter = 0
-            for line in log_content:
-                if f"Epoch: [{epoch}][{iter}/9]" in line:
-                    iter += 1
-                    assert f"lr: {lr:.4g}" in line
-                    assert "ETA: " in line
-            assert iter == 10
+            # check lr/logging period/ETA
+            for epoch in range(10):
+                if epoch >= 0 and epoch < 3:
+                    lr = 0.1
+                elif epoch < 6:
+                    lr = 0.01
+                elif epoch < 9:
+                    lr = 0.001
+                else:
+                    lr = 0.0001
+                if log_period == 4:
+                    cnt = 0
+                    for line in log_content:
+                        if f"Epoch: [{epoch}]" in line:
+                            assert f"lr: {lr:.4g}" in line
+                            assert "[3/9]" in line or "[7/9]" in line
+                            assert "ETA: " in line
+                            cnt += 1
+                    assert cnt == 2
+                else:
+                    iter = 0
+                    for line in log_content:
+                        if f"Epoch: [{epoch}][{iter}/9]" in line:
+                            iter += 1
+                            assert f"lr: {lr:.4g}" in line
+                            assert "ETA: " in line
+                    assert iter == 10
 
 
 def test_tensorboard_logging():
-    class SimpleHook(HookBase):
-        def after_iter(self) -> None:
-            self.log(self.trainer.cur_iter, metric1=self.trainer.cur_iter, smooth=False)
+    def run_one_test(eval_hook_period, logger_hook_period, simple_hook_period, max_epochs=9):
+        class SimpleHook(HookBase):
+            def __init__(self, period=1):
+                self.period = period
 
-    with tempfile.TemporaryDirectory() as dir:
-        trainer = _create_new_trainer(max_epochs=9, work_dir=dir)
-        test_func = mock.Mock(return_value={"metric2": 3.0})
-        trainer.register_hooks([EvalHook(3, test_func), SimpleHook()])
-        trainer.train()
+            def after_iter(self) -> None:
+                if self.every_n_inner_iters(self.period):
+                    self.log(self.trainer.cur_iter, metric1=self.trainer.cur_iter, smooth=False)
 
-        tb_log_file = os.listdir(os.path.join(dir, "tb_logs"))
-        assert len(tb_log_file) == 1
-        tb_log_file = os.path.join(dir, "tb_logs", tb_log_file[0])
+        with tempfile.TemporaryDirectory() as dir:
+            trainer = _create_new_trainer(max_epochs=max_epochs, work_dir=dir, log_period=logger_hook_period)
+            test_func = mock.Mock(return_value={"metric2": 3.0})
+            trainer.register_hooks([EvalHook(eval_hook_period, test_func), SimpleHook(simple_hook_period)])
+            trainer.train()
 
-        lrs = []
-        metric1s = []
-        metric2s = []
-        for event in tf.train.summary_iterator(tb_log_file):
-            for value in event.summary.value:
-                if value.tag == "lr":
-                    lrs.append(value.simple_value)
-                if value.tag == "metric1":
-                    metric1s.append(value.simple_value)
-                if value.tag == "metric2":
-                    metric2s.append(value.simple_value)
-        assert len(lrs) == 90
-        true_lrs = [0.1] * 30 + [0.01] * 30 + [0.001] * 30
-        assert sum([lrs[i] - true_lrs[i] for i in range(90)]) < 1e-7
-        assert len(metric1s) == 90
-        assert len(metric2s) == 3
+            tb_log_file = os.listdir(os.path.join(dir, "tb_logs"))
+            assert len(tb_log_file) == 1
+            tb_log_file = os.path.join(dir, "tb_logs", tb_log_file[0])
 
-    # with log_period
-    with tempfile.TemporaryDirectory() as dir:
-        trainer = _create_new_trainer(max_epochs=9, work_dir=dir, log_period=4)
-        test_func = mock.Mock(return_value={"metric2": 3.0})
-        trainer.register_hooks([EvalHook(3, test_func), SimpleHook()])
-        trainer.train()
+            lrs = []
+            metric1s = []
+            metric2s = []
+            for event in tf.train.summary_iterator(tb_log_file):
+                for value in event.summary.value:
+                    if value.tag == "lr":
+                        lrs.append(value.simple_value)
+                    if value.tag == "metric1":
+                        metric1s.append(value.simple_value)
+                    if value.tag == "metric2":
+                        metric2s.append(value.simple_value)
+            return lrs, metric1s, metric2s
 
-        tb_log_file = os.listdir(os.path.join(dir, "tb_logs"))
-        assert len(tb_log_file) == 1
-        tb_log_file = os.path.join(dir, "tb_logs", tb_log_file[0])
+    # no period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=1, logger_hook_period=1, simple_hook_period=1)
+    assert len(lrs) == 90
+    true_lrs = [0.1] * 30 + [0.01] * 30 + [0.001] * 30
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    assert len(metric1s) == 90
+    assert len(metric2s) == 9
 
-        lrs = []
-        metric1s = []
-        metric2s = []
-        for event in tf.train.summary_iterator(tb_log_file):
-            for value in event.summary.value:
-                if value.tag == "lr":
-                    lrs.append(value.simple_value)
-                if value.tag == "metric1":
-                    metric1s.append(value.simple_value)
-                if value.tag == "metric2":
-                    metric2s.append(value.simple_value)
-        assert len(lrs) == 27
-        true_lrs = [0.1] * 9 + [0.01] * 9 + [0.001] * 9
-        assert sum([lrs[i] - true_lrs[i] for i in range(27)]) < 1e-7
-        assert len(metric1s) == 27
-        assert len(metric2s) == 3
+    # only eval_hook_period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=3, logger_hook_period=1, simple_hook_period=1)
+    assert len(lrs) == 90
+    true_lrs = [0.1] * 30 + [0.01] * 30 + [0.001] * 30
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    assert len(metric1s) == 90
+    assert len(metric2s) == 3
+
+    # only logger_hook_period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=1, logger_hook_period=3, simple_hook_period=1)
+    assert len(lrs) == 36
+    true_lrs = [0.1] * 12 + [0.01] * 12 + [0.001] * 12
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    for metric1 in metric1s:
+        assert metric1 % 10 in [2, 5, 8, 9]
+    assert len(metric1s) == 36
+    assert len(metric2s) == 9
+
+    # only simple_hook_period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=1, logger_hook_period=1, simple_hook_period=3)
+    assert len(lrs) == 90
+    true_lrs = [0.1] * 30 + [0.01] * 30 + [0.001] * 30
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    for metric1 in metric1s:
+        assert metric1 % 10 in [2, 5, 8]
+    assert len(metric1s) == 27
+    assert len(metric2s) == 9
+
+    # eval_hook_period + logger_hook_period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=3, logger_hook_period=4, simple_hook_period=1)
+    assert len(lrs) == 27
+    true_lrs = [0.1] * 9 + [0.01] * 9 + [0.001] * 9
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    for metric1 in metric1s:
+        assert metric1 % 10 in [3, 7, 9]
+    assert len(metric1s) == 27
+    assert len(metric2s) == 3
+
+    # eval_hook_period + simple_hook_period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=3, logger_hook_period=1, simple_hook_period=4)
+    assert len(lrs) == 90
+    true_lrs = [0.1] * 30 + [0.01] * 30 + [0.001] * 30
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    for metric1 in metric1s:
+        assert metric1 % 10 in [3, 7]
+    assert len(metric1s) == 18
+    assert len(metric2s) == 3
+
+    # logger_hook_period + simple_hook_period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=1, logger_hook_period=3, simple_hook_period=4)
+    assert len(lrs) == 36
+    true_lrs = [0.1] * 12 + [0.01] * 12 + [0.001] * 12
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    for metric1 in metric1s:
+        assert metric1 % 10 in [3, 7]
+    assert len(metric1s) == 18
+    assert len(metric2s) == 9
+
+    # eval_hook_period + logger_hook_period + simple_hook_period
+    lrs, metric1s, metric2s = run_one_test(eval_hook_period=3, logger_hook_period=3, simple_hook_period=4)
+    assert len(lrs) == 36
+    true_lrs = [0.1] * 12 + [0.01] * 12 + [0.001] * 12
+    for lr, true_lr in zip(lrs, true_lrs):
+        assert np.allclose(lr, true_lr)
+    for metric1 in metric1s:
+        assert metric1 % 10 in [3, 7]
+    assert len(metric1s) == 18
+    assert len(metric2s) == 3
 
 
 def test_checkpoint_and_resume():
@@ -287,9 +321,7 @@ def test_checkpoint_and_resume():
 
                     # If the metric storage resumes correctly,
                     # the training smoothed losses should be the same too.
-                    for loss1, loss2 in zip(
-                        epoch_3_smoothed_losses, epoch_3_smoothed_losses_resume
-                    ):
+                    for loss1, loss2 in zip(epoch_3_smoothed_losses, epoch_3_smoothed_losses_resume):
                         assert loss1 == loss2
 
 
@@ -305,13 +337,14 @@ def test_eval_hook():
 
 def test_checkpoint_hook():
     with tempfile.TemporaryDirectory() as dir:
-        trainer = _create_new_trainer(max_epochs=10, work_dir=dir, max_num_checkpoints=3)
+        trainer = _create_new_trainer(max_epochs=10, work_dir=dir, max_num_checkpoints=3,
+                                      checkpoint_period=2)
         trainer.train()
         for epoch in range(10):
-            if epoch < 7:
-                assert not os.path.exists(os.path.join(dir, f"checkpoints/epoch_{epoch}.pth"))
-            else:
+            if epoch in [5, 7, 9]:
                 assert os.path.exists(os.path.join(dir, f"checkpoints/epoch_{epoch}.pth"))
+            else:
+                assert not os.path.exists(os.path.join(dir, f"checkpoints/epoch_{epoch}.pth"))
 
 
 def test_metric_storage():
