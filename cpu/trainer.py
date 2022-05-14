@@ -14,7 +14,7 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
-from .hooks import CheckpointerHook, HookBase, LoggerHook, LRUpdateHook
+from .hooks import CheckpointHook, HookBase, LoggerHook, LRUpdateHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .history_buffer import HistoryBuffer
@@ -176,8 +176,8 @@ class Trainer:
         setup_logger("cpu", output_dir=self.work_dir)
 
         default_hooks = [
-            LRUpdateHook(),  # should be the first one
-            CheckpointerHook(self._checkpoint_period, self._max_num_checkpoints),
+            LRUpdateHook(),
+            CheckpointHook(self._checkpoint_period, self._max_num_checkpoints),
             LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir),
         ]
         self.register_hooks(default_hooks)
@@ -200,24 +200,25 @@ class Trainer:
     def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
         """Register hooks to the trainer.
 
-        The hooks are executed in the order they are registered.
+        For hooks with the same priority, they are executed in the order they are registered.
 
         Args:
             hooks (list[HookBase]): List of hooks.
         """
-        hooks = [h for h in hooks if h is not None]
-        for h in hooks:
-            assert isinstance(h, HookBase)
+        for hook in hooks:
+            assert isinstance(hook, HookBase)
             # To avoid circular reference, hooks and trainer cannot own each other. This normally
             # does not matter, but will cause memory leak if the involved objects contain __del__.
             # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
-            h.trainer = weakref.proxy(self)
-            # We always keep :class:`LoggerHook` as the last hook to avoid losing any records
-            # that should have been logged. The order of other hooks remains the same.
-            if self._hooks and isinstance(self._hooks[-1], LoggerHook):
-                self._hooks.insert(len(self._hooks) - 1, h)
-            else:
-                self._hooks.append(h)
+            hook.trainer = weakref.proxy(self)
+            inserted = False
+            for i in range(len(self._hooks) - 1, -1, -1):
+                if hook.priority >= self._hooks[i].priority:
+                    self._hooks.insert(i + 1, hook)
+                    inserted = True
+                    break
+            if not inserted:
+                self._hooks.insert(0, hook)
 
     def _call_hooks(self, stage: str) -> None:
         for h in self._hooks:

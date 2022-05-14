@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional
 from .hookbase import HookBase
 
 
-class CheckpointerHook(HookBase):
-    """Save checkpoints periodically.
+class CheckpointHook(HookBase):
+    """Save checkpoint periodically.
 
     Save checkpoint, if current epoch is a multiple of period or ``max_epochs`` is reached.
     """

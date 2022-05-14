@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 class LoggerHook(HookBase):
     """Write metrics to console and tensorboard files."""
 
+    priority = 10
+
     def __init__(self, period: int = 50, tb_log_dir: str = "log_dir", **kwargs) -> None:
         """
         Args:
