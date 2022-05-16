@@ -14,6 +14,10 @@ Learn more from our [documentaion](https://core-pytorch-utils.readthedocs.io/en/
 
 It is recommended to run the demo in `example/` before using this library.
 
+## License
+
+CPU is released under the [MIT License](LICENSE).
+
 ## Acknowledgments
 
 This project is build upon these foundational ones:
