@@ -20,8 +20,4 @@ CPU is released under the [MIT License](LICENSE).
 
 ## Acknowledgments
 
-This project is build upon these foundational ones:
-
-- [mmcv](https://github.com/open-mmlab/mmcv.git)
-- [detectron2](https://github.com/facebookresearch/detectron2.git)
-- [pytorch-image-models](https://github.com/rwightman/pytorch-image-models)
+We refered [mmcv](https://github.com/open-mmlab/mmcv.git), [detectron2](https://github.com/facebookresearch/detectron2.git) and [pytorch-image-models](https://github.com/rwightman/pytorch-image-models) when develping CPU.
