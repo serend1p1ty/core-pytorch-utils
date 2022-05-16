@@ -1,5 +1,7 @@
 <img src="docs/_static/logo.png" alt="drawing" width="200"/>
 
+[![Documentation Status](https://readthedocs.org/projects/core-pytorch-utils/badge/?version=latest)](https://core-pytorch-utils.readthedocs.io/en/latest/?badge=latest)
+
 # Core PyTorch Utils (CPU)
 
 This package is a light-weight core library that provides the most common and essential functionality shared in various deep learning tasks.
