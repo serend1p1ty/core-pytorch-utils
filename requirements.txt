@@ -1,0 +1,6 @@
+torch>1.6
+numpy
+pyyaml
+tensorboard
+termcolor
+tabulate
