@@ -3,7 +3,7 @@ import os
 import os.path as osp
 import time
 import weakref
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 class Trainer:
     """An epoch-based trainer.
 
-    A simple trainer for the most common type of task:
-    single-cost single-optimizer single-data-source epoch-based optimization
+    The class implements a simple trainer for the most common type of task:
+    single-cost single-optimizer single-data-source epoch-based optimization.
     It assumes that every step, you:
 
     1. Load a batch from the data_loader.
@@ -35,13 +35,36 @@ class Trainer:
     3. Compute the gradients with the above loss.
     4. Update the model with the optimizer.
 
-    All other tasks during training (lr update, checkpointing, logging, evaluation) are maintained
-    by hooks, which can be registered by :meth:`register_hooks`.
+    All other tasks during training (e.g., lr updating, checkpointing, logging, evaluation)
+    are maintained by hooks, which can be registered by :meth:`register_hooks`.
 
     If you want to do anything fancier than this, subclass this class
     and implement your own :meth:`train_one_iter`.
 
-    .. code-block:: python
+    .. Note::
+
+        Currently only support single GPU training.
+
+    Args:
+        model (torch.nn.Module)
+        optimizer (torch.optim.Optimizer)
+        lr_scheduler (optim.lr_scheduler._LRScheduler)
+        data_loader (torch.utils.data.DataLoader): Training data loader.
+        max_epochs (int): Total training epochs.
+        work_dir (str): The working directory to save checkpoints and logs.
+            Defaults to "work_dir".
+        max_num_checkpoints (int): The maximum number of checkpoints to save.
+            If None, save all checkpoints. Defaults to None.
+        checkpoint_period (int): The period (epoch-based) to save checkpoint. Defaults to 1.
+        log_period (int): The period (iter-based) to log. Defaults to 50.
+        clip_grad_norm (float): Max norm of the gradients. If <= 0, will not clip gradients.
+            Defaults to 0.
+        enable_amp (bool): Enable the Automatic Mixed Precision (AMP) training.
+            Defaults to False.
+        by_epoch, warmup_t, warmup_by_epoch, warmup_mode, warmup_init_lr, warmup_factor: Refer to the
+            documentation of :class:`cpu.lr_scheduler.LRWarmupScheduler`.
+
+    Example::
 
         # create your model / optimizer / lr_scheduler / data_loader before using the trainer
         model = ...
@@ -51,10 +74,6 @@ class Trainer:
         # train 100 epochs
         trainer = Trainer(model, optimizer, lr_scheduler, data_loader, max_epochs=100)
         trainer.train()
-
-    .. Note::
-
-        Currently only support single GPU training.
     """
 
     def __init__(
@@ -79,24 +98,6 @@ class Trainer:
         warmup_factor: float = 0.0,
     ):
         """
-        Args:
-            model (torch.nn.Module)
-            optimizer (torch.optim.Optimizer)
-            lr_scheduler (optim.lr_scheduler._LRScheduler)
-            data_loader (torch.utils.data.DataLoader): Training data loader.
-            max_epochs (int): Total training epochs.
-            work_dir (str): The working directory to save checkpoints and logs.
-                Defaults to "work_dir".
-            max_num_checkpoints (int): The maximum number of checkpoints to save.
-                If None, save all checkpoints. Defaults to None.
-            checkpoint_period (int): The period (epoch-based) to save checkpoint. Defaults to 1.
-            log_period (int): The period (iter-based) to log. Defaults to 50.
-            clip_grad_norm (float): Max norm of the gradients. If <= 0, will not clip gradients.
-                Defaults to 0.
-            enable_amp (bool): Enable the Automatic Mixed Precision (AMP) training.
-                Defaults to False.
-            by_epoch, warmup_t, warmup_by_epoch, warmup_mode, warmup_init_lr, warmup_factor: Refer to the
-                documentation of lr_scheduler.py
         """
         self.model = model
         self.optimizer = optimizer
@@ -167,7 +168,7 @@ class Trainer:
         return [h.__class__.__name__ for h in self._hooks]
 
     def log(self, *args, **kwargs) -> None:
-        """Update metrics."""
+        """Update the metrics stored in :obj:`self.trainer.metric_storage`."""
         self.metric_storage.update(*args, **kwargs)
 
     def _default_setup(self) -> None:
@@ -250,7 +251,7 @@ class Trainer:
     def train_one_iter(self) -> None:
         """Train one iteration.
 
-        Subclass :class:`cpu.Trainer` and implement your :meth:`train_one_iter`
+        Subclass :class:`cpu.trainer.Trainer` and implement your own :meth:`train_one_iter`
         to do something fancier.
         """
         iter_start_time = time.perf_counter()
@@ -317,7 +318,7 @@ class Trainer:
     def train(self, resume_from_checkpoint: Optional[str] = None, auto_resume: bool = True) -> None:
         """Start training.
 
-        If `resume_from_checkpoint` is specified, resume from the given checkpoint.
+        If ``resume_from_checkpoint`` is specified, resume from the given checkpoint.
         Otherwise, auto resume from the latest checkpoint.
 
         Args:
@@ -339,11 +340,11 @@ class Trainer:
         self._call_hooks("after_train")
 
     def save_checkpoint(self, file_name: str) -> None:
-        """Save training states: `epoch`, `model`, `optimizer`, `lr_scheduler`,
-        `metric_storage`, `hooks` (optional), `grad_scaler` (optional).
+        """Save training state: ``epoch``, ``model``, ``optimizer``, ``lr_scheduler``,
+        ``metric_storage``, ``hooks`` (optional), ``grad_scaler`` (optional).
 
         Args:
-            filename (str): The checkpoint will be save as "ckpt_dir/filename".
+            filename (str): The checkpoint will be saved as ``ckpt_dir/filename``.
         """
         data = {
             "epoch": self.epoch,
@@ -369,7 +370,7 @@ class Trainer:
     def load_checkpoint(self, path: Optional[str] = None, auto_resume: bool = False):
         """
         Args:
-            path (str): Path to the checkpoint.
+            path (str): Path to the checkpoint to load.
             auto_resume (bool): If True, automatically resume from the latest checkpoint.
         """
         if path is None and auto_resume:
@@ -435,7 +436,7 @@ class MetricStorage(dict):
     batch time) in training process, and provides access to the smoothed values for better logging.
 
     The class is designed for automatic tensorboard logging. User should specify the ``smooth``
-    when calling :meth:`update`, in order to we can determine which metrics should be
+    when calling :meth:`update`, so that we can determine which metrics should be
     smoothed when performing tensorboard logging.
 
     Example::
@@ -489,8 +490,8 @@ class MetricStorage(dict):
         The specific behavior depends on the ``smooth`` when updating metrics.
 
         Returns:
-            dict[str -> (int, float)]: Mapping from metric name to its
-                (the latest iteration, the avg/latest value) pair.
+            dict[str -> (int, float)]:
+                Mapping from metric name to its (the latest iteration, the avg / the latest value) pair.
         """
         return {
             key: (self._latest_iter[key], his_buf.avg if self._smooth[key] else his_buf.latest)

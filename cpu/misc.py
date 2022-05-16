@@ -19,7 +19,7 @@ def collect_env() -> str:
 
     The following information are contained.
 
-        - sys.platform: The variable of ``sys.platform``.
+        - sys.platform: The value of ``sys.platform``.
         - Python: Python version.
         - Numpy: Numpy version.
         - CUDA available: Bool, indicating if CUDA is available.
@@ -73,7 +73,8 @@ def set_random_seed(seed: int, rank: int = 0) -> None:
 
     Args:
         seed (int): Nonnegative integer.
-        rank (int): Process rank in the distributed training. Defaults to 0.
+        rank (int): Process rank in distributed training.
+            Defaults to 0. Actual seed is ``seed + rank``.
     """
     assert seed >= 0, f"Got invalid seed value {seed}."
     seed += rank
@@ -101,10 +102,7 @@ def create_small_table(small_dict: Dict[str, Any]) -> str:
     This is only suitable for small dictionaries.
 
     Args:
-        small_dict (dict): A result dictionary of only a few items.
-
-    Returns:
-        str: The table as a string.
+        small_dict (dict): A dictionary of only a few items.
     """
     keys, values = tuple(zip(*small_dict.items()))
     table = tabulate(

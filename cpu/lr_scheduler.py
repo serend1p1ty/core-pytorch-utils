@@ -3,26 +3,27 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, _LRScheduler
 
 
 class LRWarmupScheduler:
-    """This class wraps the standard PyTorch LR scheduler to support warmup."""
+    """This class wraps the standard PyTorch LR scheduler to support warmup.
+
+    Args:
+        torch_scheduler (_LRScheduler)
+        by_epoch (bool): If True, the ``torch_scheduler`` is epoch-based, else iteration-based.
+        epoch_len (int): The number of iterations in an epoch.
+            Required only when ``by_epoch=True & warmup_by_epoch=False``.
+        warmup_t (int): How many iterations / epochs in warmup stage. If ``warmup_by_epoch=True``,
+            "**t**" means epoch, else iteration. Defaults to 0 to disable warmup.
+        warmup_by_epoch (bool): If True, perform warmup at each epoch end, else iteration end.
+            Defaults to False.
+        warmup_mode (str): "fix", "auto", or "factor". Defaults to "fix".
+        warmup_init_lr (float): The initial warmup lr. Required in "fix" mode. Defaults to None.
+        warmup_factor (float): The factor of initial warmup lr relative to base lr.
+            Required in "auto" and "factor" mode. Defaults to None.
+    """
 
     def __init__(self, torch_scheduler: _LRScheduler, by_epoch: bool, epoch_len: Optional[int] = None,
                  # the following settings are related to warmup
                  warmup_t: int = 0, warmup_by_epoch: bool = False, warmup_mode: str = "fix",
                  warmup_init_lr: Optional[float] = None, warmup_factor: Optional[float] = None):
-        """
-        Args:
-            torch_scheduler (_LRScheduler)
-            by_epoch (bool): If True, the torch_scheduler is epoch-based, else itefactorn-based.
-            epoch_len (int): The number of itefactorns in an epoch.
-                Required only when by_epoch=True & warmup_by_epoch=False.
-            warmup_t (int): How many itefactorns/epochs in warmup stage. Defaults to 0 to disable warmup.
-            warmup_by_epoch (bool): If True, perform warmup at each epoch end, else itefactorn end.
-                Defaults to False.
-            warmup_mode (str): "fix", "auto", or "factor". Defaults to "fix".
-            warmup_init_lr (float): The initial warmup lr. Required in "fix" mode. Defaults to None.
-            warmup_factor (float): The factor of initial warmup lr relative to base lr.
-                Required in "auto" and "factor" mode. Defaults to None.
-        """
         self.torch_scheduler = torch_scheduler
         self.by_epoch = by_epoch
         self.epoch_len = epoch_len
@@ -94,6 +95,12 @@ class LRWarmupScheduler:
             param_group['lr'] = lr
 
     def epoch_update(self, metric: Optional[float] = None) -> None:
+        """Prepare the learning rate for the next epoch.
+        The method should be called after finishing each epoch.
+
+        Args:
+            metric (float): Metric value used in :class:`ReduceLROnPlateau`. Defaults to None.
+        """
         if not self.by_epoch:
             return
 
@@ -109,6 +116,9 @@ class LRWarmupScheduler:
                 self.torch_scheduler.step()
 
     def iter_update(self) -> None:
+        """Prepare the learning rate for the next iteration.
+        The method should be called after finishing each iteration.
+        """
         if self.warmup_by_epoch:
             return
 
@@ -125,10 +135,17 @@ class LRWarmupScheduler:
                 self.torch_scheduler.step()
 
     def state_dict(self) -> Dict[str, Any]:
+        """Returns the state of the scheduler as a dict."""
         state = {key: value for key, value in self.__dict__.items() if key != "torch_scheduler"}
         state["torch_scheduler"] = self.torch_scheduler.state_dict()
         return state
 
-    def load_state_dict(self, state_dict) -> None:
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Loads the scheduler state.
+
+        Args:
+            state_dict (dict): scheduler state. Should be an object returned
+                from a call to :meth:`state_dict`.
+        """
         self.torch_scheduler.load_state_dict(state_dict.pop("torch_scheduler"))
         self.__dict__.update(state_dict)

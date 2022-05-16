@@ -7,16 +7,15 @@ class EvalHook(HookBase):
     """Run an evaluation function periodically.
 
     It is executed every ``period`` epochs and after the last epoch.
+
+    Args:
+        period (int): The period to run ``eval_func``. Set to 0 to
+            not evaluate periodically, but still after the last epoch.
+        eval_func (callable): A function which takes no arguments, and
+            returns a dict of evaluation metrics.
     """
 
     def __init__(self, period: int, eval_func: Callable):
-        """
-        Args:
-            period (int): The period to run ``eval_func``. Set to 0 to
-                not evaluate periodically (but still after the last iteration).
-            eval_func (callable): A function which takes no arguments, and
-                returns a dict of evaluation metrics.
-        """
         self._period = period
         self._eval_func = eval_func
 

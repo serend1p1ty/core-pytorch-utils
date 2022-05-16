@@ -24,7 +24,7 @@ def setup_logger(
 
     Args:
         name (str): Logger name. Defaults to None to setup root logger.
-        output_dir (str): A directory to save log.
+        output_dir (str): The directory to save log.
         rank (int): Process rank in the distributed training. Defaults to 0.
         log_level (int): Verbosity level of the logger. Defaults to ``logging.DEBUG``.
         color (bool): If True, color the output. Defaults to True.

@@ -4,7 +4,11 @@ from collections import deque
 
 class HistoryBuffer:
     """The class tracks a series of values and provides access to the smoothed
-    value over a window or the global average / sum of the series.
+    value over a window or the global average / sum of the sequence.
+
+    Args:
+        window_size (int): The maximal number of values that can
+            be stored in the buffer. Defaults to 20.
 
     Example::
 
@@ -16,11 +20,6 @@ class HistoryBuffer:
     """
 
     def __init__(self, window_size: int = 20) -> None:
-        """
-        Args:
-            window_size (int): The maximal number of values that can
-                be stored in the buffer. Defaults to 20.
-        """
         self._history = deque(maxlen=window_size)
         self._count: int = 0
         self._sum: float = 0.0
@@ -35,16 +34,20 @@ class HistoryBuffer:
 
     @property
     def latest(self) -> float:
+        """The latest value of the queue."""
         return self._history[-1]
 
     @property
     def avg(self) -> float:
+        """The average over the window."""
         return np.mean(self._history)
 
     @property
     def global_avg(self) -> float:
+        """The global average of the queue."""
         return self._sum / self._count
 
     @property
     def global_sum(self) -> float:
+        """The global sum of the queue."""
         return self._sum
