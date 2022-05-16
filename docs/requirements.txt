@@ -1,3 +1,4 @@
+numpy
 myst_parser
 sphinx-copybutton
 sphinx_rtd_theme
