@@ -1,3 +1,5 @@
+<img src="docs/_static/logo.png" alt="drawing" width="200"/>
+
 # Core PyTorch Utils (CPU)
 
 This package is a light-weight core library that provides the most common and essential functionality shared in various deep learning tasks.
