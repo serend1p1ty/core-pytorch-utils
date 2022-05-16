@@ -11,7 +11,7 @@ pip install -v -e .
 
 ## Train a CNN on MINIST
 
-We slightly modify the official PyTorch MINIST [demo](https://github.com/pytorch/examples/edit/main/mnist/main.py) to use our Trainer. The code is placed in the `example` folder.
+We slightly modify the official PyTorch MINIST [demo](https://github.com/pytorch/examples/edit/main/mnist/main.py) to use our Trainer. The code is placed in the `example/` folder.
 
 ```
 """The code is modified from: https://github.com/pytorch/examples/blob/main/mnist/main.py"""
