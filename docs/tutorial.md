@@ -1,8 +1,10 @@
 The tutorial will show you how to install and use the CPU library to train a network.
 
-## Installation
+## Prerequisites
 
-Run the following commands in the CPU root directory.
+PyTorch 1.6+ to use `torch.cuda.amp`.
+
+## Installation
 
 ```
 pip install -r requirements.txt
