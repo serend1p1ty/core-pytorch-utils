@@ -383,3 +383,27 @@ def test_metric_storage():
     assert math.isclose(metric_storage.values_maybe_smooth["accuracy"][1], 2.4 / 4)
     assert metric_storage["loss"].global_avg == 2.6 / 6
     assert metric_storage["accuracy"].global_avg == 0.45
+
+
+def test_hook_priority():
+    class Hook1(HookBase):
+        priority = 1
+
+    class Hook2(HookBase):
+        priority = 2
+
+    class Hook3(HookBase):
+        priority = 3
+
+    with tempfile.TemporaryDirectory() as dir:
+        trainer = _create_new_trainer(work_dir=dir)
+        trainer.register_hooks([Hook3()])
+        trainer.register_hooks([Hook1()])
+        hooks = [hook for hook in trainer._hooks if isinstance(hook, (Hook1, Hook2, Hook3))]
+        assert isinstance(hooks[0], Hook1)
+        assert isinstance(hooks[1], Hook3)
+        trainer.register_hooks([Hook2()])
+        hooks = [hook for hook in trainer._hooks if isinstance(hook, (Hook1, Hook2, Hook3))]
+        assert isinstance(hooks[0], Hook1)
+        assert isinstance(hooks[1], Hook2)
+        assert isinstance(hooks[2], Hook3)
