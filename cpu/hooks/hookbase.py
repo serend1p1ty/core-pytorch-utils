@@ -24,7 +24,7 @@ class HookBase:
     In the hook method, users can access ``self.trainer`` to access more
     properties about the context (e.g., model, optimizer, current epoch).
 
-    Each hook has a priority, which is usually an integer from 1 to 10.
+    Each hook has a priority, which is an integer from 1 to 10.
     The smaller the number, the higher the priority. Hooks are executed
     in order of priority from high to low. If two hooks have the same priority,
     they are executed in the order they are registered.

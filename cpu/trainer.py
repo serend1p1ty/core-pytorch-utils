@@ -208,6 +208,7 @@ class Trainer:
         """
         for hook in hooks:
             assert isinstance(hook, HookBase)
+            assert hook.priority >= 1 and hook.priority <= 10
             # To avoid circular reference, hooks and trainer cannot own each other. This normally
             # does not matter, but will cause memory leak if the involved objects contain __del__.
             # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
@@ -272,16 +273,13 @@ class Trainer:
         #####################
         # 2. Calculate loss #
         #####################
-        if self._enable_amp:
-            with autocast():
-                loss_dict = self.model(batch)
-        else:
+        with autocast(enabled=self._enable_amp):
             loss_dict = self.model(batch)
-        if isinstance(loss_dict, torch.Tensor):
-            losses = loss_dict
-            loss_dict = {"total_loss": loss_dict}
-        else:
-            losses = sum(loss_dict.values())
+            if isinstance(loss_dict, torch.Tensor):
+                losses = loss_dict
+                loss_dict = {"total_loss": loss_dict}
+            else:
+                losses = sum(loss_dict.values())
 
         ##########################
         # 3. Calculate gradients #
