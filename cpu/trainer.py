@@ -10,14 +10,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.cuda.amp import GradScaler, autocast
-from torch.nn.parallel import DataParallel, DistributedDataParallel
+from torch.nn.parallel import DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
-from .hooks import CheckpointHook, HookBase, LoggerHook, LRUpdateHook
+from .distributed import gather, get_rank, is_main_process
+from .history_buffer import HistoryBuffer
+from .hooks import CheckpointHook, DistributedHook, HookBase, LoggerHook, LRUpdateHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
-from .history_buffer import HistoryBuffer
 from .misc import symlink
 
 logger = logging.getLogger(__name__)
@@ -40,10 +41,6 @@ class Trainer:
 
     If you want to do anything fancier than this, subclass this class
     and implement your own :meth:`train_one_iter`.
-
-    .. Note::
-
-        Currently only support single GPU training.
 
     Args:
         model (torch.nn.Module)
@@ -97,8 +94,6 @@ class Trainer:
         warmup_init_lr: float = 0.0,
         warmup_factor: float = 0.0,
     ):
-        """
-        """
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = LRWarmupScheduler(
@@ -126,19 +121,22 @@ class Trainer:
 
     @property
     def lr(self) -> float:
+        """The learning rate of the first parameter group."""
         return self.optimizer.param_groups[0]["lr"]
 
     @property
     def epoch_len(self) -> int:
+        """The number of iterations per epoch."""
         return len(self.data_loader)
 
     @property
     def max_iters(self) -> int:
+        """The total training iterations."""
         return self.max_epochs * self.epoch_len
 
     @property
     def cur_iter(self) -> int:
-        """Returns the current iteration ranged in [0, max_iters - 1]."""
+        """The current iteration ranged in [0, max_iters - 1]."""
         return self.epoch * self.epoch_len + self.inner_iter
 
     @property
@@ -158,7 +156,8 @@ class Trainer:
 
     @property
     def model_or_module(self) -> nn.Module:
-        if isinstance(self.model, (DistributedDataParallel, DataParallel)):
+        """The model not wrapped by :class:`DistributedDataParallel`."""
+        if isinstance(self.model, DistributedDataParallel):
             return self.model.module
         return self.model
 
@@ -174,13 +173,13 @@ class Trainer:
     def _default_setup(self) -> None:
         # setup the root logger of the `cpu` library to show
         # the log messages generated from this library
-        setup_logger("cpu", output_dir=self.work_dir)
+        setup_logger("cpu", output_dir=self.work_dir, rank=get_rank())
 
-        default_hooks = [
-            LRUpdateHook(),
-            CheckpointHook(self._checkpoint_period, self._max_num_checkpoints),
-            LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir),
-        ]
+        default_hooks = [LRUpdateHook(), DistributedHook()]
+        if is_main_process():
+            default_hooks.extend([
+                CheckpointHook(self._checkpoint_period, self._max_num_checkpoints),
+                LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir)])
         self.register_hooks(default_hooks)
         logger.info(f"Registered default hooks: {self.registered_hook_names}")
 
@@ -198,56 +197,79 @@ class Trainer:
             f"{split_line}"
         )
 
-    def register_hooks(self, hooks: List[Optional[HookBase]]) -> None:
+    def register_hooks(self, hooks: List[HookBase]) -> None:
         """Register hooks to the trainer.
+
+        Args:
+            hooks (list[HookBase]): List of hooks to be registered.
+        """
+        for hook in hooks:
+            self.register_hook(hook)
+
+    def register_hook(self, hook: HookBase) -> None:
+        """Register a hook to the trainer.
 
         For hooks with the same priority, they are executed in the order they are registered.
 
         Args:
-            hooks (list[HookBase]): List of hooks.
+            hook (HookBase): The hook to be registered.
         """
-        for hook in hooks:
-            assert isinstance(hook, HookBase)
-            assert hook.priority >= 1 and hook.priority <= 10
-            # To avoid circular reference, hooks and trainer cannot own each other. This normally
-            # does not matter, but will cause memory leak if the involved objects contain __del__.
-            # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
-            hook.trainer = weakref.proxy(self)
-            inserted = False
-            for i in range(len(self._hooks) - 1, -1, -1):
-                if hook.priority >= self._hooks[i].priority:
-                    self._hooks.insert(i + 1, hook)
-                    inserted = True
-                    break
-            if not inserted:
-                self._hooks.insert(0, hook)
+        assert isinstance(hook, HookBase)
+        assert hook.priority >= 1 and hook.priority <= 10
+        # To avoid circular reference, hooks and trainer cannot own each other. This normally
+        # does not matter, but will cause memory leak if the involved objects contain __del__.
+        # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
+        hook.trainer = weakref.proxy(self)
+        inserted = False
+        for i in range(len(self._hooks) - 1, -1, -1):
+            if hook.priority >= self._hooks[i].priority:
+                self._hooks.insert(i + 1, hook)
+                inserted = True
+                break
+        if not inserted:
+            self._hooks.insert(0, hook)
 
     def _call_hooks(self, stage: str) -> None:
         for h in self._hooks:
             getattr(h, stage)()
 
-    def _log_iter_metrics(self, loss_dict: Dict[str, torch.Tensor], data_time: float,
-                          iter_time: float, lr: float) -> None:
+    def _log_iter_metrics(self, loss_dict: Dict[str, torch.Tensor],
+                          data_time: float, iter_time: float) -> None:
         """
         Args:
             loss_dict (dict): Dict of scalar losses.
             data_time (float): Time taken by the dataloader iteration.
             iter_time (float): Time taken by one complete iteration.
-            lr (float): Learning rate used in this iteration.
         """
-        self.log(self.cur_iter, data_time=data_time, iter_time=iter_time)
-        self.log(self.cur_iter, lr=lr, smooth=False)
+        metrics_dict = {k: v.detach().cpu().item() for k, v in loss_dict.items()}
+        metrics_dict.update(data_time=data_time, iter_time=iter_time)
+        # gather metrics among all workers for logging
+        all_metrics_dict = gather(metrics_dict)
 
-        loss_dict = {k: v.detach().cpu().item() for k, v in loss_dict.items()}
-        loss_value = sum(loss_dict.values())
-        if not np.isfinite(loss_value):
-            raise FloatingPointError(
-                f"Loss became infinite or NaN at epoch={self.epoch}! loss_dict = {loss_dict}."
-            )
+        if is_main_process():
+            self.log(self.cur_iter, lr=self.lr, smooth=False)
 
-        self.log(self.cur_iter, total_loss=loss_value)
-        if len(loss_dict) > 1:
-            self.log(self.cur_iter, **loss_dict)
+            # data_time among workers can have high variance. The actual latency
+            # caused by data_time is the maximum among workers.
+            data_time = np.max([x.pop("data_time") for x in all_metrics_dict])
+            self.log(self.cur_iter, data_time=data_time)
+
+            # same as data_time
+            iter_time = np.max([x.pop("iter_time") for x in all_metrics_dict])
+            self.log(self.cur_iter, iter_time=iter_time)
+
+            # average the rest metrics
+            metrics_dict = {k: np.mean([x[k] for x in all_metrics_dict])
+                            for k in all_metrics_dict[0].keys()}
+            losses_reduced = sum(metrics_dict.values())
+            if not np.isfinite(losses_reduced):
+                raise FloatingPointError(
+                    f"Loss became infinite or NaN at epoch={self.epoch}! "
+                    f"loss_dict={metrics_dict}.")
+
+            self.log(self.cur_iter, total_loss=losses_reduced)
+            if len(metrics_dict) > 1:
+                self.log(self.cur_iter, **metrics_dict)
 
     def train_one_iter(self) -> None:
         """Train one iteration.
@@ -303,7 +325,7 @@ class Trainer:
         else:
             self.optimizer.step()
 
-        self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time, self.lr)
+        self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time)
 
     def train_one_epoch(self) -> None:
         # evaluation hook changes the model to `eval` mode after finishing epoch
@@ -366,7 +388,8 @@ class Trainer:
         symlink(file_name, dst_file)
 
     def load_checkpoint(self, path: Optional[str] = None, auto_resume: bool = False):
-        """
+        """Load the given checkpoint or resume from the latest checkpoint.
+
         Args:
             path (str): Path to the checkpoint to load.
             auto_resume (bool): If True, automatically resume from the latest checkpoint.

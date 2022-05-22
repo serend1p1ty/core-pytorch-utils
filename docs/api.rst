@@ -28,6 +28,11 @@ cpu.hooks
 .. automodule:: cpu.hooks
     :members:
 
+cpu.distributed
+------------------
+.. automodule:: cpu.distributed
+    :members:
+
 cpu.misc
 ------------------
 .. automodule:: cpu.misc

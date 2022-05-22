@@ -7,6 +7,8 @@ class EvalHook(HookBase):
     """Run an evaluation function periodically.
 
     It is executed every ``period`` epochs and after the last epoch.
+    Evaluation should be after saving checkpoint, because if it fails,
+    we can use the saved checkpoint to debug.
 
     Args:
         period (int): The period to run ``eval_func``. Set to 0 to
@@ -15,11 +17,14 @@ class EvalHook(HookBase):
             returns a dict of evaluation metrics.
     """
 
-    def __init__(self, period: int, eval_func: Callable):
+    # should > the priority of CheckpointHook (level 5)
+    priority = 6
+
+    def __init__(self, period: int, eval_func: Callable) -> None:
         self._period = period
         self._eval_func = eval_func
 
-    def _do_eval(self):
+    def _do_eval(self) -> None:
         res = self._eval_func()
 
         if res:
@@ -34,6 +39,6 @@ class EvalHook(HookBase):
                     ) from e
             self.log(self.trainer.epoch, **res, smooth=False)
 
-    def after_epoch(self):
+    def after_epoch(self) -> None:
         if self.every_n_epochs(self._period) or self.is_last_epoch():
             self._do_eval()

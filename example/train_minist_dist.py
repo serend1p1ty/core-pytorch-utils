@@ -1,78 +1,25 @@
-"""The code is modified from: https://github.com/pytorch/examples/blob/main/mnist/main.py"""
 import os
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-from cpu import ConfigArgumentParser, EvalHook, Trainer, save_args, set_random_seed, setup_logger
+from cpu import (
+    ConfigArgumentParser,
+    EvalHook,
+    Trainer,
+    init_distributed,
+    save_args,
+    set_random_seed,
+    setup_logger,
+)
+from torch.nn.parallel import DistributedDataParallel
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 from inference_hook import InferenceHook
-
-
-class Net(nn.Module):
-    def __init__(self, device):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
-
-        self.device = device
-        self.to(device)
-
-    def forward(self, data):
-        # CPU makes some assumptions about the input and output of the model:
-        # 1. In the training phase, the model takes the whole batch as input, and output training loss.
-        # 2. In the test phase, the model still takes the whole batch as input, but the output is unlimited.
-        img, target = data
-        img = img.to(self.device)
-        target = target.to(self.device)
-
-        x = self.conv1(img)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
-        output = F.log_softmax(x, dim=1)
-
-        if self.training:
-            loss = F.nll_loss(output, target)
-            return loss
-        return output
-
-
-def test(model, test_loader, logger):
-    model.eval()
-    test_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for img, target in test_loader:
-            output = model((img, target)).cpu()
-            # sum up batch loss
-            test_loss += F.nll_loss(output, target, reduction="sum").item()
-            # get the index of the max log-probability
-            pred = output.argmax(dim=1, keepdim=True)
-            correct += pred.eq(target.view_as(pred)).sum().item()
-
-    test_loss /= len(test_loader.dataset)
-
-    logger.info("\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+from train_minist import Net, test
 
 
 def main():
     # 1. Create an argument parser supporting loading YAML configuration file.
-    parser = ConfigArgumentParser(description="PyTorch MNIST Example")
+    parser = ConfigArgumentParser(description="Distributed training Example")
     parser.add_argument("--work-dir", type=str, default="work_dir",
                         help="working directory to save checkpoints and logs")
     parser.add_argument("--batch-size", type=int, default=64, metavar="N",
@@ -97,8 +44,11 @@ def main():
     args = parser.parse_args()
 
     # 2. Perform some basic setup
-    save_args(args, os.path.join(args.work_dir, "runtime_config.yaml"))
-    logger = setup_logger("train_minist", args.work_dir)
+    rank, local_rank, world_size = init_distributed()  # [Step 1]
+    is_dist = world_size > 1
+
+    save_args(args, os.path.join(args.work_dir, "runtime_config.yaml"), rank=rank)
+    logger = setup_logger("train_minist", args.work_dir, rank=rank)
     set_random_seed(args.seed, deterministic=args.deterministic)
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -111,10 +61,20 @@ def main():
     ])
     train_dataset = datasets.MNIST("../data", train=True, download=True, transform=transform)
     test_dataset = datasets.MNIST("../data", train=False, transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+
+    if is_dist:  # [Step 2]
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+    else:
+        train_sampler = None
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=args.batch_size,
+        sampler=train_sampler, shuffle=(train_sampler is None))
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size)
 
     model = Net(device)
+    if is_dist:
+        model = DistributedDataParallel(model, device_ids=[local_rank])  # [Step 3]
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
     lr_scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
@@ -125,7 +85,7 @@ def main():
         EvalHook(1, lambda: test(model, test_loader, logger)),
         # Refer to inference_hook.py
         InferenceHook(test_dataset)
-    ])
+    ] if rank == 0 else [])  # [Step 4]
     trainer.train()
 
 

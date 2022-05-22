@@ -1,4 +1,5 @@
 from .config_parser import ConfigArgumentParser, save_args
+from .distributed import *
 from .history_buffer import HistoryBuffer
 from .hooks import *
 from .logger import setup_logger

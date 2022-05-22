@@ -13,17 +13,17 @@ logger = logging.getLogger(__name__)
 
 class LoggerHook(HookBase):
     """Write metrics to console and tensorboard files.
-    **The hook has the lowest priority (level 10)**."""
+    **The hook has the lowest priority (level 10)**.
+
+    Args:
+        period (int): The period to write metrics. Defaults to 50.
+        tb_log_dir (str): The directory to save the tensorboard files. Defaults to "log_dir".
+        kwargs: Other arguments passed to :class:`torch.utils.tensorboard.SummaryWriter`.
+    """
 
     priority = 10
 
     def __init__(self, period: int = 50, tb_log_dir: str = "log_dir", **kwargs) -> None:
-        """
-        Args:
-            period (int): The period to write metrics. Defaults to 50.
-            tb_log_dir (str): The directory to save the tensorboard files. Defaults to "log_dir".
-            kwargs: Other arguments passed to ``torch.utils.tensorboard.SummaryWriter(...)``
-        """
         self._period = period
         self._tb_writer = SummaryWriter(tb_log_dir, **kwargs)
         # metric name -> the latest iteration written to tensorboard file

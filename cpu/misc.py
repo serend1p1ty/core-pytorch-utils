@@ -3,7 +3,7 @@ import os
 import random
 import sys
 from collections import defaultdict
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -51,14 +51,12 @@ def collect_env() -> str:
 
     try:
         import torchvision
-
         env_info.append(("TorchVision", torchvision.__version__))
     except ModuleNotFoundError:
         pass
 
     try:
         import cv2
-
         env_info.append(("OpenCV", cv2.__version__))
     except ModuleNotFoundError:
         pass
@@ -68,20 +66,26 @@ def collect_env() -> str:
     return env_str
 
 
-def set_random_seed(seed: int, rank: int = 0) -> None:
+def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> None:
     """Set random seed.
 
     Args:
-        seed (int): Nonnegative integer.
-        rank (int): Process rank in distributed training.
-            Defaults to 0. Actual seed is ``seed + rank``.
+        seed (int): Nonnegative integer. If None, use a generated seed.
+        deterministic (bool): Whether to set the deterministic option for CUDNN backend.
     """
-    assert seed >= 0, f"Got invalid seed value {seed}."
-    seed += rank
+    max_seed_value = np.iinfo(np.uint32).max
+    min_seed_value = np.iinfo(np.uint32).min
+    if seed is None or not (min_seed_value <= seed <= max_seed_value):
+        new_seed = random.randint(min_seed_value, max_seed_value)
+        logger.warning(f"Got invalid seed: {seed}, use the generated seed: {new_seed}")
+        seed = new_seed
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
+    if deterministic:
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
 
 
 def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:

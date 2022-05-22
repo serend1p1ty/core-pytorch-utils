@@ -1,22 +1,27 @@
 import logging
+import math
 import os
 import re
 import tempfile
 import time
-import math
-
-import mock
-import torch
-import numpy as np
-from torch import nn
-from torch.utils.data import DataLoader
-import tensorflow.compat.v1 as tf
 
 import cpu.logger as logger
+import mock
+import numpy as np
+import pytest
+import torch
 from cpu.hooks import EvalHook, HookBase
-from cpu.trainer import Trainer, MetricStorage
+from cpu.trainer import MetricStorage, Trainer
+from torch import nn
+from torch.utils.data import DataLoader
 
-tf.disable_v2_behavior()
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    _TF_AVAILABLE = False
+else:
+    _TF_AVAILABLE = True
+    tf.disable_v2_behavior()
 
 
 class _SimpleModel(nn.Module):
@@ -130,6 +135,7 @@ def test_basic_run():
                     assert iter == 10
 
 
+@pytest.mark.skipif(not _TF_AVAILABLE, reason="The test needs tensorflow")
 def test_tensorboard_logging():
     def run_one_test(eval_hook_period, logger_hook_period, simple_hook_period, max_epochs=9):
         class SimpleHook(HookBase):
