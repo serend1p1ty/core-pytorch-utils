@@ -3,6 +3,7 @@ numpy
 tabulate
 termcolor
 tensorboard
+protobuf~=3.19.0
 myst_parser
 sphinx-copybutton
 sphinx_rtd_theme
