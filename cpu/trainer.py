@@ -21,6 +21,8 @@ from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
 from .misc import symlink
 
+__all__ = ["Trainer"]
+
 logger = logging.getLogger(__name__)
 
 

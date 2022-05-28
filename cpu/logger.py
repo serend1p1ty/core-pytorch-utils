@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 from typing import Optional
-
 from termcolor import colored
 
 logger_initialized = {}

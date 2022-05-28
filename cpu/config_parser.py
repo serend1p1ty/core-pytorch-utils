@@ -49,12 +49,13 @@ class ConfigArgumentParser(argparse.ArgumentParser):
         return super().parse_args(remaining_argv)
 
 
-def save_args(args: Namespace,
-              filepath: str,
-              excluded_fields: Optional[List[str]] = None,
-              rank: int = 0) -> None:
-    """
-    If in master process, save ``args`` to a YAML file. Otherwise, do nothing.
+def save_args(
+    args: Namespace,
+    filepath: str,
+    excluded_fields: Optional[List[str]] = None,
+    rank: int = 0
+) -> None:
+    """If in master process, save ``args`` to a YAML file. Otherwise, do nothing.
 
     Args:
         args (Namespace): The parsed arguments to be saved.

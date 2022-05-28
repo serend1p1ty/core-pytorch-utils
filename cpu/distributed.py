@@ -1,5 +1,4 @@
-"""
-The code of this module is modified from:
+"""The code of this module is modified from:
 
 - https://github.com/facebookresearch/detectron2/blob/main/detectron2/utils/comm.py
 - https://github.com/pytorch/vision/blob/main/references/detection/utils.py
@@ -15,13 +14,23 @@ import torch.distributed as dist
 from torch import Tensor
 from torch._C._distributed_c10d import ProcessGroup
 
+__all__ = [
+    "all_gather",
+    "gather",
+    "reduce_dict",
+    "setup_print_for_distributed",
+    "get_world_size",
+    "get_rank",
+    "is_main_process",
+    "init_distributed"
+]
+
 logger = logging.getLogger(__name__)
 
 
 @functools.lru_cache()
 def _get_global_gloo_group() -> ProcessGroup:
-    """
-    Return a process group based on gloo backend, containing all the ranks
+    """Return a process group based on gloo backend, containing all ranks.
     The result is cached.
     """
     if dist.get_backend() == "nccl":
@@ -31,8 +40,7 @@ def _get_global_gloo_group() -> ProcessGroup:
 
 
 def all_gather(data: Any, group: Optional[ProcessGroup] = None) -> List[Any]:
-    """
-    Run :meth:`all_gather` on arbitrary picklable data (not necessarily tensors).
+    """Run :meth:`all_gather` on arbitrary picklable data (not necessarily tensors).
 
     Args:
         data: Any picklable object.
@@ -56,8 +64,7 @@ def all_gather(data: Any, group: Optional[ProcessGroup] = None) -> List[Any]:
 
 
 def gather(data: Any, dst: int = 0, group: Optional[ProcessGroup] = None) -> List[Any]:
-    """
-    Run :meth:`gather` on arbitrary picklable data (not necessarily tensors).
+    """Run :meth:`gather` on arbitrary picklable data (not necessarily tensors).
 
     Args:
         data: Any picklable object.
@@ -86,8 +93,7 @@ def gather(data: Any, dst: int = 0, group: Optional[ProcessGroup] = None) -> Lis
 
 
 def reduce_dict(input_dict: Dict[str, Tensor], average: bool = True) -> Dict[str, Tensor]:
-    """
-    Reduce the values in the dictionary from all processes so that all processes
+    """Reduce the values in the dictionary from all processes so that all processes
     have the averaged results.
 
     Args:
@@ -116,8 +122,7 @@ def reduce_dict(input_dict: Dict[str, Tensor], average: bool = True) -> Dict[str
 
 
 def setup_print_for_distributed(is_master: bool) -> None:
-    """
-    This function disables printing when not in master process.
+    """This function disables printing when not in master process.
 
     Args:
         is_master (bool): If the current process is the master process or not.
@@ -170,8 +175,7 @@ def _find_free_port() -> int:
 
 
 def init_distributed(auto: bool = False) -> Tuple[int]:
-    """
-    Perform the following initialization for distributed mode:
+    """Initialize the distributed mode as follows:
 
     - Initialize the process group, with ``backend="nccl"`` and ``init_method="env://"``.
     - Set correct cuda device.

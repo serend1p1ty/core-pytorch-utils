@@ -9,9 +9,9 @@ import numpy as np
 import torch
 from tabulate import tabulate
 
-logger = logging.getLogger(__name__)
+__all__ = ["collect_env", "set_random_seed", "symlink", "create_small_table"]
 
-__all__ = ["set_random_seed", "collect_env", "symlink", "create_small_table"]
+logger = logging.getLogger(__name__)
 
 
 def collect_env() -> str:

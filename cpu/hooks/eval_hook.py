@@ -1,5 +1,4 @@
 from typing import Callable
-
 from .hookbase import HookBase
 
 
@@ -34,7 +33,7 @@ class EvalHook(HookBase):
                     v = float(v)
                 except Exception as e:
                     raise ValueError(
-                        "[EvalHook] eval_function should return a dict of float. "
+                        "[EvalHook] eval function should return a dict of float. "
                         f"Got '{k}: {v}' instead."
                     ) from e
             self.log(self.trainer.epoch, **res, smooth=False)
