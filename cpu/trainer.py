@@ -19,7 +19,7 @@ from .history_buffer import HistoryBuffer
 from .hooks import CheckpointHook, DistributedHook, HookBase, LoggerHook, LRUpdateHook
 from .logger import setup_logger
 from .lr_scheduler import LRWarmupScheduler
-from .misc import symlink
+from .misc import collect_env, symlink
 
 __all__ = ["Trainer"]
 
@@ -176,6 +176,8 @@ class Trainer:
         # setup the root logger of the `cpu` library to show
         # the log messages generated from this library
         setup_logger("cpu", output_dir=self.work_dir, rank=get_rank())
+
+        logger.info("Environment info:\n" + collect_env())
 
         default_hooks = [LRUpdateHook(), DistributedHook()]
         if is_main_process():
