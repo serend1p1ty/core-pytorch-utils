@@ -6,13 +6,24 @@
 
 This package is a light-weight core library that provides the most common and essential functionality shared in various deep learning tasks.
 
-## Installation and usage
+## Installation
 
-See this [tutorial](docs/tutorial.md).
+```
+git clone https://github.com/serend1p1ty/core-pytorch-utils.git
+cd core-pytorch-utils
+pip install -r requirements.txt
+pip install -v -e .
+```
+
+## Getting Started
+
+In [examples/](https://github.com/serend1p1ty/core-pytorch-utils/tree/main/examples) folder, we show how to use our Trainer to train a CNN on MINIST.
+
+It is **strongly** recommended that you run this code before using the CPU library.
+
+## Advanced
 
 Learn more from our [documentaion](https://core-pytorch-utils.readthedocs.io/en/latest/).
-
-It is recommended to run the demo in `example/` before using this library.
 
 ## License
 
