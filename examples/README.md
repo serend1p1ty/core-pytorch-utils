@@ -39,5 +39,5 @@ Run the script by the following command.
 ```bash
 python -m torch.distributed.launch --nproc_per_node $GPU example/train_minist.py --config example/config.yaml
 # OR
-torchrun example/train_minist.py --nproc_per_node $GPU --config example/config.yaml
+torchrun --nproc_per_node $GPU example/train_minist.py --config example/config.yaml
 ```
