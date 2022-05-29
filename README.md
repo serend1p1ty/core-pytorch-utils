@@ -4,7 +4,12 @@
 
 # Core PyTorch Utils (CPU)
 
-This package is a light-weight core library that provides the most common and essential functionality shared in various deep learning tasks.
+This package is a light-weight core library that provides the most common and essential functionalities shared in various deep learning tasks:
+
+- `Trainer`: does tedious training logic for you.
+- `LRWarmupScheduler`: wraps all standard PyTorch LR scheduler to support warmup.
+- `ConfigArgumentParser`: provides a argument parser that supports loading a YAML configuration file.
+- ......
 
 ## Installation
 
