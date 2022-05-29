@@ -1,6 +1,7 @@
 <img src="docs/_static/logo.png" alt="drawing" width="200"/>
 
 [![Documentation Status](https://readthedocs.org/projects/core-pytorch-utils/badge/?version=latest)](https://core-pytorch-utils.readthedocs.io/en/latest/?badge=latest)
+[![CircleCI](https://circleci.com/gh/serend1p1ty/core-pytorch-utils.svg?style=svg)](https://circleci.com/gh/serend1p1ty/core-pytorch-utils)
 
 # Core PyTorch Utils (CPU)
 

@@ -2,5 +2,6 @@ torch>1.6
 numpy
 pyyaml
 tensorboard
+protobuf~=3.19.0
 termcolor
 tabulate
