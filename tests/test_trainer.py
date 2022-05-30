@@ -3,13 +3,13 @@ import math
 import os
 import re
 import tempfile
-import time
 
 import cpu.logger as logger
 import mock
 import numpy as np
 import pytest
 import torch
+import torch.nn.functional as F
 from cpu.hooks import EvalHook, HookBase
 from cpu.trainer import MetricStorage, Trainer
 from torch import nn
@@ -25,29 +25,32 @@ else:
 
 
 class _SimpleModel(nn.Module):
-    def __init__(self, sleep_sec=0):
+    def __init__(self, device):
         super().__init__()
-        self.fc = nn.Linear(3, 3)
-        self.sleep_sec = sleep_sec
+        self.fc = nn.Linear(10, 10)
+        self.device = device
+        self.to(device)
 
-    def forward(self, x):
-        if self.sleep_sec > 0:
-            time.sleep(self.sleep_sec)
-        return {"loss": x.sum() + sum([x.mean() for x in self.parameters()])}
+    def forward(self, data):
+        x, y = data
+        x = x.to(self.device)
+        y = y.to(self.device)
+        return F.mse_loss(self.fc(x), y)
 
 
 class _SimpleDataset:
     def __init__(self):
-        self.data = torch.rand(10, 3)
+        self.data = torch.rand(10, 10)
+        self.target = torch.rand(10)
 
     def __len__(self):
         return 10
 
     def __getitem__(self, index):
-        return self.data[index]
+        return self.data[index], self.target[index]
 
 
-# a random but unchanged dataset in the whole testing phase
+# a random but unchanged dataset
 _simple_dataset = _SimpleDataset()
 
 
@@ -72,7 +75,7 @@ def _create_new_trainer(
 ):
     _reset_logger()
 
-    model = _SimpleModel().to(device)
+    model = _SimpleModel(device)
     optimizer = torch.optim.SGD(model.parameters(), 0.1)
     if not plateau:
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size)
