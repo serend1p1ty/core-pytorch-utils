@@ -37,7 +37,8 @@ Also known as distributed training. We need four steps to make the code support 
 Run the script by the following command.
 
 ```bash
-python -m torch.distributed.launch --nproc_per_node $GPU example/train_minist.py --config example/config.yaml
+# Assume you use 2 GPUs. Actually batch size = batch size per GPU (32) * number of GPUs (2) = 64
+python -m torch.distributed.launch --nproc_per_node $GPU example/train_minist_dist.py --config example/config.yaml --batch-size 32
 # OR
-torchrun --nproc_per_node $GPU example/train_minist.py --config example/config.yaml
+torchrun --nproc_per_node $GPU example/train_minist_dist.py --config example/config.yaml --batch-size 32
 ```
