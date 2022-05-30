@@ -6,8 +6,6 @@ class EvalHook(HookBase):
     """Run an evaluation function periodically.
 
     It is executed every ``period`` epochs and after the last epoch.
-    Evaluation should be after saving checkpoint, because if it fails,
-    we can use the saved checkpoint to debug.
 
     Args:
         period (int): The period to run ``eval_func``. Set to 0 to
@@ -16,8 +14,7 @@ class EvalHook(HookBase):
             returns a dict of evaluation metrics.
     """
 
-    # should > the priority of CheckpointHook (level 5)
-    priority = 6
+    priority = 1
 
     def __init__(self, period: int, eval_func: Callable) -> None:
         self._period = period
@@ -33,8 +30,7 @@ class EvalHook(HookBase):
                     v = float(v)
                 except Exception as e:
                     raise ValueError(
-                        "[EvalHook] eval function should return a dict of float. "
-                        f"Got '{k}: {v}' instead."
+                        f"Eval function should return a dict of float. Got '{k}: {v}' instead."
                     ) from e
             self.log(self.trainer.epoch, **res, smooth=False)
 

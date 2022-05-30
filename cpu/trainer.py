@@ -164,9 +164,9 @@ class Trainer:
         return self.model
 
     @property
-    def registered_hook_names(self) -> List[str]:
+    def hook_info(self) -> List[str]:
         """The names of all registered hooks."""
-        return [h.__class__.__name__ for h in self._hooks]
+        return [h.__class__.__name__ + f" (priority {h.priority})" for h in self._hooks]
 
     def log(self, *args, **kwargs) -> None:
         """Update the metrics stored in :obj:`self.trainer.metric_storage`."""
@@ -185,7 +185,7 @@ class Trainer:
                 CheckpointHook(self._checkpoint_period, self._max_num_checkpoints),
                 LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir)])
         self.register_hooks(default_hooks)
-        logger.info(f"Registered default hooks: {self.registered_hook_names}")
+        logger.info(f"Registered default hooks: {self.hook_info}")
 
         if self._enable_amp:
             logger.info("Automatic Mixed Precision (AMP) training is on.")

@@ -66,12 +66,18 @@ def _create_new_trainer(
     max_num_checkpoints=None,
     enable_amp=False,
     device="cpu",
+    plateau=False,
+    step_size=3,
+    patience=2,
 ):
     _reset_logger()
 
     model = _SimpleModel().to(device)
     optimizer = torch.optim.SGD(model.parameters(), 0.1)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3)
+    if not plateau:
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size)
+    else:
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=patience)
     data_loader = DataLoader(_simple_dataset)
     trainer = Trainer(
         model,
@@ -343,14 +349,63 @@ def test_eval_hook():
 
 def test_checkpoint_hook():
     with tempfile.TemporaryDirectory() as dir:
-        trainer = _create_new_trainer(max_epochs=10, work_dir=dir, max_num_checkpoints=3,
-                                      checkpoint_period=2)
+        trainer = _create_new_trainer(
+            max_epochs=10, work_dir=dir, max_num_checkpoints=3, checkpoint_period=2
+        )
         trainer.train()
         for epoch in range(10):
             if epoch in [5, 7, 9]:
                 assert os.path.exists(os.path.join(dir, f"checkpoints/epoch_{epoch}.pth"))
             else:
                 assert not os.path.exists(os.path.join(dir, f"checkpoints/epoch_{epoch}.pth"))
+
+
+def test_lr_update_hook():
+    # test ReduceLROnPlateau
+    with tempfile.TemporaryDirectory() as dir:
+        eval_cnt = [-1]
+        eval_metrics = [10, 9, 8, 7, 7, 7, 7, 3, 2, 1]
+        def eval_func():
+            eval_cnt[0] += 1
+            return {"Eval Metric": eval_metrics[eval_cnt[0]]}
+
+        class CollectLRHook(HookBase):
+            def __init__(self):
+                self.lrs = []
+
+            def after_iter(self):
+                self.lrs.append(self.metric_storage["lr"].latest)
+
+        trainer = _create_new_trainer(max_epochs=10, work_dir=dir, plateau=True)
+        collect_lr_hook = CollectLRHook()
+        trainer.register_hooks([EvalHook(1, eval_func), collect_lr_hook])
+        trainer.train()
+        true_lrs = [0.1] * 70 + [0.01] * 30
+        assert np.allclose(collect_lr_hook.lrs, true_lrs)
+
+
+def test_hook_priority():
+    class Hook1(HookBase):
+        priority = 1
+
+    class Hook2(HookBase):
+        priority = 2
+
+    class Hook3(HookBase):
+        priority = 3
+
+    with tempfile.TemporaryDirectory() as dir:
+        trainer = _create_new_trainer(work_dir=dir)
+        trainer.register_hooks([Hook3()])
+        trainer.register_hooks([Hook1()])
+        hooks = [hook for hook in trainer._hooks if isinstance(hook, (Hook1, Hook2, Hook3))]
+        assert isinstance(hooks[0], Hook1)
+        assert isinstance(hooks[1], Hook3)
+        trainer.register_hooks([Hook2()])
+        hooks = [hook for hook in trainer._hooks if isinstance(hook, (Hook1, Hook2, Hook3))]
+        assert isinstance(hooks[0], Hook1)
+        assert isinstance(hooks[1], Hook2)
+        assert isinstance(hooks[2], Hook3)
 
 
 def test_metric_storage():
@@ -389,27 +444,3 @@ def test_metric_storage():
     assert math.isclose(metric_storage.values_maybe_smooth["accuracy"][1], 2.4 / 4)
     assert metric_storage["loss"].global_avg == 2.6 / 6
     assert metric_storage["accuracy"].global_avg == 0.45
-
-
-def test_hook_priority():
-    class Hook1(HookBase):
-        priority = 1
-
-    class Hook2(HookBase):
-        priority = 2
-
-    class Hook3(HookBase):
-        priority = 3
-
-    with tempfile.TemporaryDirectory() as dir:
-        trainer = _create_new_trainer(work_dir=dir)
-        trainer.register_hooks([Hook3()])
-        trainer.register_hooks([Hook1()])
-        hooks = [hook for hook in trainer._hooks if isinstance(hook, (Hook1, Hook2, Hook3))]
-        assert isinstance(hooks[0], Hook1)
-        assert isinstance(hooks[1], Hook3)
-        trainer.register_hooks([Hook2()])
-        hooks = [hook for hook in trainer._hooks if isinstance(hook, (Hook1, Hook2, Hook3))]
-        assert isinstance(hooks[0], Hook1)
-        assert isinstance(hooks[1], Hook2)
-        assert isinstance(hooks[2], Hook3)
