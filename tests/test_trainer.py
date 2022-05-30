@@ -41,7 +41,7 @@ class _SimpleModel(nn.Module):
 class _SimpleDataset:
     def __init__(self):
         self.data = torch.rand(10, 10)
-        self.target = torch.rand(10)
+        self.target = torch.rand(10, 10)
 
     def __len__(self):
         return 10
