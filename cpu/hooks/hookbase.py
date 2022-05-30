@@ -32,7 +32,7 @@ class HookBase:
 
     # A weak reference to the trainer object. Set by the trainer when the hook is registered.
     trainer: "cpu.Trainer" = None
-    priority = 5
+    priority: int = 5
 
     def before_train(self) -> None:
         """Called before the first epoch."""

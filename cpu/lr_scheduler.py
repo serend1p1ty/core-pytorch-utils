@@ -5,6 +5,21 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, _LRScheduler
 class LRWarmupScheduler:
     """This class wraps the standard PyTorch LR scheduler to support warmup.
 
+    The usage is demonstrated in the following snippet:
+
+    .. code-block:: python
+        :emphasize-lines: 6-9
+
+        torch_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3)
+        warmup_scheduler = LRWarmupScheduler(torch_scheduler, by_epoch=True)
+        for epoch in range(max_epochs):
+            for iter in range(epoch_len):
+                train_one_iter()
+                # call iter_update() after each iteration
+                warmup_scheduler.iter_update()
+            # call epoch_update() after each epoch
+            warmup_scheduler.epoch_update()
+
     Args:
         torch_scheduler (_LRScheduler)
         by_epoch (bool): If True, the ``torch_scheduler`` is epoch-based, else iteration-based.

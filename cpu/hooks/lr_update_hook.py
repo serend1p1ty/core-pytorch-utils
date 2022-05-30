@@ -7,7 +7,7 @@ class LRUpdateHook(HookBase):
 
     To use :class:`ReduceLROnPlateau` scheduler, user should register
     an :class:`EvalHook` which returns a dict containing 'Eval Metric' field.
-    The :class:`EvalHook` should be called at each epoch end (i.e., set ``period=1``),
+    The :class:`EvalHook` should be called after each epoch (i.e., set ``period=1``),
     and before the :class:`LRUpdateHook`.
     """
 
@@ -25,7 +25,7 @@ class LRUpdateHook(HookBase):
                 break
         assert eval_hook, "To use ReduceLROnPlateau scheduler, you should register an EvalHook."
         assert eval_hook.priority < self.priority, "EvalHook must be called before LRUpdateHook"
-        assert eval_hook._period == 1, "EvalHook should be called at each epoch end."
+        assert eval_hook._period == 1, "EvalHook should be called after each epoch."
         assert "Eval Metric" in self.metric_storage, (
             "EvalHook should return a dict containing 'Eval Metric' field."
         )

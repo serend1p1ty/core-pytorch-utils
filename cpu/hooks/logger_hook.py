@@ -46,7 +46,7 @@ class LoggerHook(HookBase):
     def after_epoch(self) -> None:
         # Some hooks maybe generate logs in after_epoch().
         # When LoggerHook is the last hook, calling _write_tensorboard()
-        # at every after_epoch() can avoid missing logs.
+        # after each epoch can avoid missing logs.
         self._write_tensorboard()
 
     def _write_console(self) -> None:
