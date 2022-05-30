@@ -42,8 +42,7 @@ class ConfigArgumentParser(argparse.ArgumentParser):
             with open(res.config, "r") as f:
                 config_vars = yaml.safe_load(f)
             for key in config_vars:
-                if key not in self.option_names:
-                    self.error(f"unexpected configuration entry: {key}")
+                assert key in self.option_names, f"Unexpected configuration entry: {key}"
             self.set_defaults(**config_vars)
 
         return super().parse_args(remaining_argv)

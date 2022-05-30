@@ -51,7 +51,7 @@ class LoggerHook(HookBase):
 
     def _write_console(self) -> None:
         # These fields ("data_time", "iter_time", "lr", "loss") may does not
-        # exist when user overwrites `self.trainer.train_one_iter()`
+        # exist when user overwrites `Trainer.train_one_iter()`
         data_time = self.metric_storage["data_time"].avg if "data_time" in self.metric_storage else None
         iter_time = self.metric_storage["iter_time"].avg if "iter_time" in self.metric_storage else None
         lr = self.metric_storage["lr"].latest if "lr" in self.metric_storage else None
