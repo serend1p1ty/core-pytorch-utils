@@ -11,7 +11,7 @@ class LRWarmupScheduler:
         :emphasize-lines: 6-9
 
         torch_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3)
-        warmup_scheduler = LRWarmupScheduler(torch_scheduler, by_epoch=True)
+        warmup_scheduler = LRWarmupScheduler(torch_scheduler)
         for epoch in range(max_epochs):
             for iter in range(epoch_len):
                 train_one_iter()
@@ -23,6 +23,7 @@ class LRWarmupScheduler:
     Args:
         torch_scheduler (_LRScheduler)
         by_epoch (bool): If True, the ``torch_scheduler`` is epoch-based, else iteration-based.
+            Defaults to True.
         epoch_len (int): The number of iterations in an epoch.
             Required only when ``by_epoch=True & warmup_by_epoch=False``.
         warmup_t (int): How many iterations / epochs in warmup stage. If ``warmup_by_epoch=True``,
@@ -35,7 +36,7 @@ class LRWarmupScheduler:
             Required in "auto" and "factor" mode. Defaults to None.
     """
 
-    def __init__(self, torch_scheduler: _LRScheduler, by_epoch: bool, epoch_len: Optional[int] = None,
+    def __init__(self, torch_scheduler: _LRScheduler, by_epoch: bool = True, epoch_len: Optional[int] = None,
                  # the following settings are related to warmup
                  warmup_t: int = 0, warmup_by_epoch: bool = False, warmup_mode: str = "fix",
                  warmup_init_lr: Optional[float] = None, warmup_factor: Optional[float] = None):
