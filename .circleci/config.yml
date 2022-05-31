@@ -30,7 +30,10 @@ version_parameters: &version_parameters
     PYTORCH_VERSION: << parameters.pytorch_version >>
     TORCHVISION_VERSION: << parameters.torchvision_version >>
     PYTORCH_INDEX: << parameters.pytorch_index >>
-    PYTHON_VERSION: << parameters.python_version>>
+    PYTHON_VERSION: << parameters.python_version >>
+
+orbs:
+  codecov: codecov/codecov@3.0.0
 
 # -------------------------------------------------------------------------------------
 # Re-usable commands
@@ -81,12 +84,20 @@ run_unittests: &run_unittests
       name: Run Unit Tests
       command: |
         python -m coverage run --branch --source cpu -m pytest tests/
-        python -m coverage report
+        # export xml files for Codecov
+        python -m coverage xml
+        # export html files for CircleCI artifacts
         python -m coverage html
+        # print coverage in console
+        python -m coverage report -m
 
-save_unittests_results: &save_unittests_results
+upload_to_circleci: &upload_to_circleci
   - store_artifacts:
       path: htmlcov
+
+upload_to_codecov: &upload_to_codecov
+  - codecov/upload:
+      file: coverage.xml
 
 # -------------------------------------------------------------------------------------
 # Jobs to run
@@ -101,7 +112,9 @@ jobs:
       - <<: *install_dependencies
       - <<: *install_core_pytorch_utils
       - <<: *run_unittests
-      - <<: *save_unittests_results
+      # save unittest results to CircleCI and Codecov
+      - <<: *upload_to_circleci
+      - <<: *upload_to_codecov
 
   gpu_tests:
     <<: *gpu
@@ -112,7 +125,8 @@ jobs:
       - <<: *install_dependencies
       - <<: *install_core_pytorch_utils
       - <<: *run_unittests
-      - <<: *save_unittests_results
+      - <<: *upload_to_circleci
+      - <<: *upload_to_codecov
 
 workflows:
   version: 2
