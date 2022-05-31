@@ -49,21 +49,24 @@ class LRWarmupScheduler:
         self.warmup_init_lr = warmup_init_lr
         self.warmup_factor = warmup_factor
 
+        if warmup_by_epoch:
+            assert by_epoch
+        if by_epoch and warmup_t and not warmup_by_epoch:
+            assert epoch_len is not None
+        if self._is_plateau:
+            assert by_epoch
+
         self.param_groups = self.torch_scheduler.optimizer.param_groups
         self.base_lrs = [param_group["lr"] for param_group in self.param_groups]
-        # pre-compute the regular lr if no warmup is performed
-        max_t = warmup_t // epoch_len if by_epoch and not warmup_by_epoch else warmup_t
-        self.regular_lrs_per_t = self._pre_compute_regular_lrs_per_t(max_t)
+
+        if warmup_t:
+            # pre-compute the regular lr if no warmup is performed
+            max_t = warmup_t // epoch_len if by_epoch and not warmup_by_epoch else warmup_t
+            self.regular_lrs_per_t = self._pre_compute_regular_lrs_per_t(max_t)
 
         self.last_iter = self.last_epoch = 0
         self.in_iter_warmup = False
 
-        if warmup_by_epoch:
-            assert by_epoch
-        if by_epoch and not warmup_by_epoch:
-            assert epoch_len is not None
-        if self._is_plateau:
-            assert by_epoch
         if warmup_t > 0:
             if warmup_mode == "fix":
                 assert isinstance(warmup_init_lr, float)
