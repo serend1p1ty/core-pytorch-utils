@@ -119,9 +119,7 @@ def _setup(dir, device, train_batch_size=64, test_batch_size=1000):
     return model, optimizer, lr_scheduler, train_loader, test_loader
 
 
-def test_minist_cpu_training():
-    device = torch.device("cpu")
-    max_epochs = 2
+def test_minist_training(device="cpu", max_epochs=1):
     with tempfile.TemporaryDirectory() as dir:
         model, optimizer, lr_scheduler, train_loader, test_loader = _setup(dir, device)
         all_losses, all_test_losses, all_accuracy = _plain_train_loop(
@@ -137,20 +135,6 @@ def test_minist_cpu_training():
         assert np.allclose(all_accuracy, hook.all_accuracy)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="The test needs gpu")
-def test_minist_gpu_training():
-    device = torch.device("cuda")
-    max_epochs = 2
-    with tempfile.TemporaryDirectory() as dir:
-        model, optimizer, lr_scheduler, train_loader, test_loader = _setup(dir, device)
-        all_losses, all_test_losses, all_accuracy = _plain_train_loop(
-            model, train_loader, test_loader, optimizer, lr_scheduler, max_epochs)
-
-        model, optimizer, lr_scheduler, train_loader, test_loader = _setup(dir, device)
-        trainer = Trainer(model, optimizer, lr_scheduler, train_loader, max_epochs, dir)
-        hook = _EvalHook(lambda: _test(model, test_loader))
-        trainer.register_hook(hook)
-        trainer.train()
-        assert np.allclose(all_losses, hook.all_losses)
-        assert np.allclose(all_test_losses, hook.all_test_losses)
-        assert np.allclose(all_accuracy, hook.all_accuracy)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="The test needs cuda")
+def test_minist_training_cuda():
+    test_minist_training(device="cuda")
