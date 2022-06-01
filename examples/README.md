@@ -23,7 +23,7 @@ python example/train_minist.py --config example/config.yaml
 
 Also known as distributed training. We need four steps to make the code support distributed training.
 
-- Step 1: Call `init_distributed()` to initialize the process group. Otherwise, we cannot use `DistributedDataParallel` and those functions provided by `torch.distributed` module.
+- Step 1: Call `init_distributed()` to initialize the process group. Otherwise, we cannot use `DistributedDataParallel` and those functions provided by the `torch.distributed` module.
 - Step 2: Create `DistributedSampler` to ensure that there is no overlap between data used by different processes.
 - Step 3: Wrap model with `DistributedDataParallel`.
 - Step 4: Make some code run only in specific processes. Here are some operations that we want to do only in the master process:

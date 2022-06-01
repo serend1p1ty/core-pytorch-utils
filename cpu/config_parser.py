@@ -1,12 +1,9 @@
 import os
-import logging
 import argparse
 import yaml
 from copy import deepcopy
 from argparse import Namespace
 from typing import Optional, List
-
-logger = logging.getLogger(__name__)
 
 
 class ConfigArgumentParser(argparse.ArgumentParser):
@@ -72,4 +69,4 @@ def save_args(
         save_dict.pop(field)
     with open(filepath, "w") as f:
         yaml.dump(save_dict, f)
-    logger.info(f"Args is saved to {filepath}.")
+    print(f"[cpu.config_parser] Args is saved to {filepath}.")

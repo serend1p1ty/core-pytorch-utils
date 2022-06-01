@@ -1,4 +1,8 @@
-"""The code is modified from: https://github.com/pytorch/examples/blob/main/mnist/main.py"""
+"""PyTorch MNIST example.
+
+The code is modified from: https://github.com/pytorch/examples/blob/main/mnist/main.py
+It only supports single-gpu training.
+"""
 import os
 import torch
 import torch.nn as nn
@@ -24,7 +28,7 @@ class Net(nn.Module):
         self.to(device)
 
     def forward(self, data):
-        # CPU makes some assumptions about the input and output of the model:
+        # CPU has the following assumptions about the input and output of the model:
         # 1. In the training phase, the model takes the whole batch as input, and output training loss.
         # 2. In the test phase, the model still takes the whole batch as input, but the output is unlimited.
         img, target = data
@@ -70,61 +74,99 @@ def test(model, test_loader, logger):
         100. * correct / len(test_loader.dataset)))
 
 
-def main():
-    # 1. Create an argument parser supporting loading YAML configuration file.
+def parse_args():
     parser = ConfigArgumentParser(description="PyTorch MNIST Example")
-    parser.add_argument("--work-dir", type=str, default="work_dir",
-                        help="working directory to save checkpoints and logs")
-    parser.add_argument("--batch-size", type=int, default=64, metavar="N",
-                        help="input batch size for training (default: 64)")
-    parser.add_argument("--test-batch-size", type=int, default=1000, metavar="N",
-                        help="input batch size for testing (default: 1000)")
-    parser.add_argument("--epochs", type=int, default=14, metavar="N",
-                        help="number of epochs to train (default: 14)")
-    parser.add_argument("--lr", type=float, default=1.0, metavar="LR",
-                        help="learning rate (default: 1.0)")
-    parser.add_argument("--gamma", type=float, default=0.7, metavar="M",
-                        help="Learning rate step gamma (default: 0.7)")
-    parser.add_argument("--no-cuda", action="store_true", default=False,
-                        help="disables CUDA training")
-    parser.add_argument("--seed", type=int, default=1, metavar="S",
-                        help="random seed (default: 1)")
-    parser.add_argument("--deterministic", action="store_true",
-                        help=("turn on the CUDNN deterministic setting, which "
-                              "can slow down your training considerably."))
-    parser.add_argument("--log-interval", type=int, default=10, metavar="N",
-                        help="how many batches to wait before logging training status")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--work-dir", type=str, default="work_dir", metavar="DIR",
+        help="Working directory to save checkpoints and logs (default: 'work_dir')."
+    )
+    parser.add_argument(
+        "--dataset-dir", type=str, default="./data", metavar="DIR",
+        help="Directory to save dataset (default: './data')."
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=64, metavar="N",
+        help="Input batch size for training (default: 64)."
+    )
+    parser.add_argument(
+        "--test-batch-size", type=int, default=1000, metavar="N",
+        help="Input batch size for test (default: 1000)."
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=14, metavar="N",
+        help="Number of epochs to train (default: 14)."
+    )
+    parser.add_argument(
+        "--lr", type=float, default=1.0, metavar="LR",
+        help="Learning rate (default: 1.0)."
+    )
+    parser.add_argument(
+        "--gamma", type=float, default=0.7, metavar="M",
+        help="Learning rate step gamma (default: 0.7)."
+    )
+    parser.add_argument(
+        "--no-cuda", action="store_true", default=False,
+        help="Disables CUDA training."
+    )
+    parser.add_argument(
+        "--seed", type=int, default=-1, metavar="S",
+        help="Random seed, set to negative to randomize everything (default: -1)."
+    )
+    parser.add_argument(
+        "--deterministic", action="store_true",
+        help="Turn on the CUDNN deterministic setting, which increases reproducibility, "
+             "but can slow down your training considerably."
+    )
+    parser.add_argument(
+        "--log-interval", type=int, default=10, metavar="N",
+        help="How many batches to wait before logging training status (default: 10)."
+    )
+    return parser.parse_args()
 
-    # 2. Perform some basic setup
-    save_args(args, os.path.join(args.work_dir, "runtime_config.yaml"))
-    logger = setup_logger("train_minist", args.work_dir)
-    set_random_seed(args.seed, deterministic=args.deterministic)
 
-    use_cuda = not args.no_cuda and torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-
-    # 3. Create model, optimizer, lr_scheduler, data_loader
+def build_dataset(dir):
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
-    train_dataset = datasets.MNIST("../data", train=True, download=True, transform=transform)
-    test_dataset = datasets.MNIST("../data", train=False, transform=transform)
+    train_dataset = datasets.MNIST(dir, train=True, download=True, transform=transform)
+    test_dataset = datasets.MNIST(dir, train=False, transform=transform)
+    return train_dataset, test_dataset
+
+
+def build_dataloader(args):
+    train_dataset, test_dataset = build_dataset(args.dataset_dir)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size)
+    return train_loader, test_loader
 
+
+def main():
+    # 1. Create an argument parser supporting loading YAML configuration file
+    args = parse_args()
+
+    # 2. Basic setup
+    save_args(args, os.path.join(args.work_dir, "runtime_config.yaml"))
+    set_random_seed(args.seed, args.deterministic)
+    logger = setup_logger("train_minist", args.work_dir)
+    use_cuda = not args.no_cuda and torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    # 3. Create data_loader, model, optimizer, lr_scheduler
+    train_loader, test_loader = build_dataloader(args)
     model = Net(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
     lr_scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
     # 4. Create Trainer
-    trainer = Trainer(model, optimizer, lr_scheduler, train_loader, args.epochs,
-                      work_dir=args.work_dir, log_period=args.log_interval)
+    trainer = Trainer(
+        model, optimizer, lr_scheduler, train_loader, args.epochs,
+        work_dir=args.work_dir, log_period=args.log_interval
+    )
     trainer.register_hooks([
         EvalHook(1, lambda: test(model, test_loader, logger)),
         # Refer to inference_hook.py
-        InferenceHook(test_dataset)
+        InferenceHook(test_loader.dataset)
     ])
     trainer.train()
 

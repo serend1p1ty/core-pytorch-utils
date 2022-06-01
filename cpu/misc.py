@@ -1,17 +1,14 @@
-import logging
 import os
 import random
 import sys
 from collections import defaultdict
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import numpy as np
 import torch
 from tabulate import tabulate
 
-__all__ = ["collect_env", "set_random_seed", "symlink", "create_small_table"]
-
-logger = logging.getLogger(__name__)
+__all__ = ["collect_env", "set_random_seed", "symlink"]
 
 
 def collect_env() -> str:
@@ -25,7 +22,6 @@ def collect_env() -> str:
         - CUDA available: Bool, indicating if CUDA is available.
         - GPU devices: Device type of each GPU.
         - PyTorch: PyTorch version.
-        - PyTorch compiling details: The output of ``torch.__config__.show()``.
         - TorchVision (optional): TorchVision version.
         - OpenCV (optional): OpenCV version.
 
@@ -61,31 +57,32 @@ def collect_env() -> str:
     except ModuleNotFoundError:
         pass
 
-    torch_config = torch.__config__.show()
-    env_str = tabulate(env_info) + "\n" + torch_config
-    return env_str
+    return tabulate(env_info)
 
 
 def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> None:
     """Set random seed.
 
     Args:
-        seed (int): Nonnegative integer. If None, use a generated seed.
-        deterministic (bool): Whether to set the deterministic option for CUDNN backend.
+        seed (int): If None or negative, use a generated seed.
+        deterministic (bool): If True, set the deterministic option for CUDNN backend.
     """
-    max_seed_value = np.iinfo(np.uint32).max
-    min_seed_value = np.iinfo(np.uint32).min
-    if seed is None or not (min_seed_value <= seed <= max_seed_value):
-        new_seed = random.randint(min_seed_value, max_seed_value)
-        logger.warning(f"Got invalid seed: {seed}, use the generated seed: {new_seed}")
+    if seed is None or seed < 0:
+        new_seed = np.random.randint(2**31)
+        print(f"[cpu.misc] Got invalid seed: {seed}, so use the generated seed: {new_seed}")
         seed = new_seed
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
+    print(f"[cpu.misc] Set random seed to {seed}.")
     if deterministic:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
+        print(
+            "[cpu.misc] The CUDNN is set to deterministic. This will increase "
+            "reproducibility, but may slow down your training considerably."
+        )
 
 
 def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
@@ -99,22 +96,3 @@ def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:
     if os.path.lexists(dst) and overwrite:
         os.remove(dst)
     os.symlink(src, dst, **kwargs)
-
-
-def create_small_table(small_dict: Dict[str, Any]) -> str:
-    """Create a small table using the keys of ``small_dict`` as headers.
-    This is only suitable for small dictionaries.
-
-    Args:
-        small_dict (dict): A dictionary of only a few items.
-    """
-    keys, values = tuple(zip(*small_dict.items()))
-    table = tabulate(
-        [values],
-        headers=keys,
-        tablefmt="pipe",
-        floatfmt=".3f",
-        stralign="center",
-        numalign="center",
-    )
-    return table
