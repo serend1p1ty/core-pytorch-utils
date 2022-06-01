@@ -100,7 +100,8 @@ class Trainer:
         self.optimizer = optimizer
         self.lr_scheduler = LRWarmupScheduler(
             lr_scheduler, by_epoch, len(data_loader), warmup_t,
-            warmup_by_epoch, warmup_mode, warmup_init_lr, warmup_factor)
+            warmup_by_epoch, warmup_mode, warmup_init_lr, warmup_factor
+        )
         self.data_loader = data_loader
         self.work_dir = work_dir
         self.metric_storage = MetricStorage()
@@ -183,7 +184,8 @@ class Trainer:
         if is_main_process():
             default_hooks.extend([
                 CheckpointHook(self._checkpoint_period, self._max_num_checkpoints),
-                LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir)])
+                LoggerHook(self._log_period, tb_log_dir=self.tb_log_dir)
+            ])
         self.register_hooks(default_hooks)
         logger.info(f"Registered default hooks: {self.hook_info}")
 
@@ -263,13 +265,16 @@ class Trainer:
             self.log(self.cur_iter, iter_time=iter_time)
 
             # average the rest metrics
-            metrics_dict = {k: np.mean([x[k] for x in all_metrics_dict])
-                            for k in all_metrics_dict[0].keys()}
+            metrics_dict = {
+                k: np.mean([x[k] for x in all_metrics_dict])
+                for k in all_metrics_dict[0].keys()
+            }
             losses_reduced = sum(metrics_dict.values())
             if not np.isfinite(losses_reduced):
                 raise FloatingPointError(
                     f"Loss became infinite or NaN at epoch={self.epoch}! "
-                    f"loss_dict={metrics_dict}.")
+                    f"loss_dict={metrics_dict}."
+                )
 
             self.log(self.cur_iter, total_loss=losses_reduced)
             if len(metrics_dict) > 1:
@@ -418,11 +423,15 @@ class Trainer:
         # 2. load model
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
         if incompatible.missing_keys:
-            logger.warning("Encounter missing keys when loading model weights:\n"
-                          f"{incompatible.missing_keys}")
+            logger.warning(
+                "Encounter missing keys when loading model weights:\n"
+                f"{incompatible.missing_keys}"
+            )
         if incompatible.unexpected_keys:
-            logger.warning("Encounter unexpected keys when loading model weights:\n"
-                          f"{incompatible.unexpected_keys}")
+            logger.warning(
+                "Encounter unexpected keys when loading model weights:\n"
+                f"{incompatible.unexpected_keys}"
+            )
 
         # 3. load metric_storage
         self.metric_storage = checkpoint["metric_storage"]

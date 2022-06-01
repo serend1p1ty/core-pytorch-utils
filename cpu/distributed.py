@@ -204,11 +204,13 @@ def init_distributed(auto: bool = False) -> Tuple[int]:
 
     assert "MASTER_ADDR" in os.environ and "MASTER_PORT" in os.environ, (
         "init_method='env://' requires the two environment variables: "
-        "MASTER_ADDR and MASTER_PORT.")
+        "MASTER_ADDR and MASTER_PORT."
+    )
 
     if auto:
         assert os.environ["MASTER_ADDR"] == "127.0.0.1", (
-            "`auto` is not supported in multi-machine jobs.")
+            "`auto` is not supported in multi-machine jobs."
+        )
         port = os.environ["MASTER_PORT"]
         if not _is_free_port(port):
             new_port = _find_free_port()

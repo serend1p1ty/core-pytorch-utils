@@ -20,8 +20,10 @@ class ConfigArgumentParser(argparse.ArgumentParser):
 
     def __init__(self, *args, **kwargs):
         self.config_parser = argparse.ArgumentParser(add_help=False)
-        self.config_parser.add_argument("-c", "--config", default=None, metavar="FILE",
-                                        help="where to load YAML configuration")
+        self.config_parser.add_argument(
+            "-c", "--config", default=None, metavar="FILE",
+            help="where to load YAML configuration"
+        )
         self.option_names = []
         super().__init__(*args, **kwargs)
 
