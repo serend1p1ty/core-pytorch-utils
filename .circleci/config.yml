@@ -123,7 +123,7 @@ workflows:
           name: cpu_tests_pytorch1.10
           pytorch_version: 1.10.0+cpu
           torchvision_version: 0.11.1+cpu
-      - gpu_tests:
-          name: gpu_tests_pytorch1.10
-          pytorch_version: 1.10.0+cu111
-          torchvision_version: 0.11.1+cu111
+      # - gpu_tests:
+      #     name: gpu_tests_pytorch1.10
+      #     pytorch_version: 1.10.0+cu111
+      #     torchvision_version: 0.11.1+cu111
