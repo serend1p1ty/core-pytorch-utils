@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - "*.md"
+      - "docs/"
+      - "examples/"
+
+  pull_request:
+    paths-ignore:
+      - "*.md"
+      - "docs/"
+      - "examples/"
+
+jobs:
+  cpu_test:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        python-version: [3.7]
+        torch: [1.8.0, 1.9.0, 1.10.1]
+        include:
+          - torch: 1.8.0
+            torchvision: 0.9.0
+          - torch: 1.9.0
+            torchvision: 0.10.0
+          - torch: 1.10.1
+            torchvision: 0.11.2
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install PyTorch
+        run: pip install torch==${{matrix.torch}}+cpu torchvision==${{matrix.torchvision}}+cpu -f https://download.pytorch.org/whl/torch_stable.html
+      - name: Install unittest dependencies
+        run: |
+          # install dependencies of core-pytorch-utils
+          pip install -r requirements.txt
+          # install additional dependencies for unittests
+          pip install -r tests/requirements.txt
+          pip install pytest coverage
+      - name: Run unittests and generate coverage report
+        run: |
+          coverage run --branch --source cpu -m pytest tests/
+          coverage xml
+          coverage report -m
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
