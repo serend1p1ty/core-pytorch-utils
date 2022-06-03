@@ -1,4 +1,5 @@
-from typing import Optional, List, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
+
 from torch.optim.lr_scheduler import ReduceLROnPlateau, _LRScheduler
 
 
@@ -36,10 +37,18 @@ class LRWarmupScheduler:
             Required in "auto" and "factor" mode. Defaults to None.
     """
 
-    def __init__(self, torch_scheduler: _LRScheduler, by_epoch: bool = True, epoch_len: Optional[int] = None,
-                 # the following settings are related to warmup
-                 warmup_t: int = 0, warmup_by_epoch: bool = False, warmup_mode: str = "fix",
-                 warmup_init_lr: Optional[float] = None, warmup_factor: Optional[float] = None):
+    def __init__(
+        self,
+        torch_scheduler: _LRScheduler,
+        by_epoch: bool = True,
+        epoch_len: Optional[int] = None,
+        # the following settings are related to warmup
+        warmup_t: int = 0,
+        warmup_by_epoch: bool = False,
+        warmup_mode: str = "fix",
+        warmup_init_lr: Optional[float] = None,
+        warmup_factor: Optional[float] = None,
+    ):
         self.torch_scheduler = torch_scheduler
         self.by_epoch = by_epoch
         self.epoch_len = epoch_len
@@ -97,7 +106,9 @@ class LRWarmupScheduler:
     def _get_warmup_lrs(self, t: int, regular_lrs: List[float]) -> List[float]:
         alpha = t / self.warmup_t
         if self.warmup_mode == "fix":
-            return [self.warmup_init_lr * (1 - alpha) + base_lr * alpha for base_lr in self.base_lrs]
+            return [
+                self.warmup_init_lr * (1 - alpha) + base_lr * alpha for base_lr in self.base_lrs
+            ]
         elif self.warmup_mode == "factor":
             factor = self.warmup_factor * (1 - alpha) + alpha
             return [lr * factor for lr in regular_lrs]
@@ -125,7 +136,8 @@ class LRWarmupScheduler:
 
         self.last_epoch += 1
         if self.warmup_by_epoch and self.last_epoch < self.warmup_t:
-            self._set_lrs(self._get_warmup_lrs(self.last_epoch, self.regular_lrs_per_t[self.last_epoch]))
+            self._set_lrs(
+                self._get_warmup_lrs(self.last_epoch, self.regular_lrs_per_t[self.last_epoch]))
         elif self.warmup_by_epoch and self.last_epoch == self.warmup_t:
             self._set_lrs(self.regular_lrs_per_t[-1])
         elif not self.in_iter_warmup:

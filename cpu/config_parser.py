@@ -1,9 +1,8 @@
-import os
 import argparse
-import yaml
-from copy import deepcopy
+import os
 from argparse import Namespace
-from typing import Optional, List
+
+import yaml
 
 
 class ConfigArgumentParser(argparse.ArgumentParser):
@@ -20,10 +19,8 @@ class ConfigArgumentParser(argparse.ArgumentParser):
 
     def __init__(self, *args, **kwargs):
         self.config_parser = argparse.ArgumentParser(add_help=False)
-        self.config_parser.add_argument(
-            "-c", "--config", default=None, metavar="FILE",
-            help="where to load YAML configuration"
-        )
+        self.config_parser.add_argument("-c", "--config", default=None, metavar="FILE",
+                                        help="Where to load YAML configuration.")
         self.option_names = []
         super().__init__(*args, **kwargs)
 
@@ -47,18 +44,12 @@ class ConfigArgumentParser(argparse.ArgumentParser):
         return super().parse_args(remaining_argv)
 
 
-def save_args(
-    args: Namespace,
-    filepath: str,
-    excluded_fields: Optional[List[str]] = None,
-    rank: int = 0
-) -> None:
+def save_args(args: Namespace, filepath: str, rank: int = 0) -> None:
     """If in master process, save ``args`` to a YAML file. Otherwise, do nothing.
 
     Args:
         args (Namespace): The parsed arguments to be saved.
         filepath (str): A filepath ends with ``.yaml``.
-        excluded_fields (list[str]): Names of the fields that are not saved.
         rank (int): Process rank in the distributed training. Defaults to 0.
     """
     assert isinstance(args, Namespace)
@@ -66,9 +57,6 @@ def save_args(
     if rank != 0:
         return
     os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
-    save_dict = deepcopy(args.__dict__)
-    for field in excluded_fields or []:
-        save_dict.pop(field)
     with open(filepath, "w") as f:
-        yaml.dump(save_dict, f)
+        yaml.dump(args.__dict__, f)
     print(f"[cpu.config_parser] Args is saved to {filepath}.")

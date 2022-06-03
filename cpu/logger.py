@@ -2,12 +2,14 @@ import logging
 import os
 import sys
 from typing import Optional
+
 from termcolor import colored
 
 logger_initialized = {}
 
 
 class _ColorfulFormatter(logging.Formatter):
+
     def formatMessage(self, record):
         log = super(_ColorfulFormatter, self).formatMessage(record)
         if record.levelno == logging.DEBUG:
@@ -27,8 +29,9 @@ def setup_logger(name: Optional[str] = None, output_dir: Optional[str] = None, r
 
     If the logger has not been initialized, this method will initialize the
     logger by adding one or two handlers, otherwise the initialized logger will
-    be directly returned. During initialization, only the logger of the master process
-    is added console handler. If ``output_dir`` is specified, all loggers will be added file handler.
+    be directly returned. During initialization, only the logger of the master
+    process is added console handler. If ``output_dir`` is specified, all loggers
+    will be added file handler.
 
     Args:
         name (str): Logger name. Defaults to None to setup root logger.
@@ -49,12 +52,10 @@ def setup_logger(name: Optional[str] = None, output_dir: Optional[str] = None, r
     # the messages of this logger will not be propagated to its parent
     logger.propagate = False
 
-    formatter = logging.Formatter(
-        "[%(asctime)s %(name)s %(levelname)s]: %(message)s",
-        datefmt="%m/%d %H:%M:%S")
+    formatter = logging.Formatter("[%(asctime)s %(name)s %(levelname)s]: %(message)s",
+                                  datefmt="%m/%d %H:%M:%S")
     color_formatter = _ColorfulFormatter(
-        colored("[%(asctime)s %(name)s]: ", "green") + "%(message)s",
-        datefmt="%m/%d %H:%M:%S")
+        colored("[%(asctime)s %(name)s]: ", "green") + "%(message)s", datefmt="%m/%d %H:%M:%S")
 
     # create console handler for master process
     if rank == 0:

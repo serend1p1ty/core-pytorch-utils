@@ -1,7 +1,8 @@
 torch>1.6
 numpy
 pyyaml
+tabulate
+termcolor
 tensorboard
 protobuf~=3.19.0
-termcolor
-tabulate
+pre-commit

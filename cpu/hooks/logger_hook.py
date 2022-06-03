@@ -36,12 +36,10 @@ class LoggerHook(HookBase):
         self._tb_writer.close()
         total_train_time = time.perf_counter() - self._train_start_time
         total_hook_time = total_train_time - self.metric_storage["iter_time"].global_sum
-        logger.info(
-            "Total training time: {} ({} on hooks)".format(
-                str(datetime.timedelta(seconds=int(total_train_time))),
-                str(datetime.timedelta(seconds=int(total_hook_time))),
-            )
-        )
+        logger.info("Total training time: {} ({} on hooks)".format(
+            str(datetime.timedelta(seconds=int(total_train_time))),
+            str(datetime.timedelta(seconds=int(total_hook_time))),
+        ))
 
     def after_epoch(self) -> None:
         # Some hooks maybe generate logs in after_epoch().
@@ -52,8 +50,10 @@ class LoggerHook(HookBase):
     def _write_console(self) -> None:
         # These fields ("data_time", "iter_time", "lr", "loss") may does not
         # exist when user overwrites `Trainer.train_one_iter()`
-        data_time = self.metric_storage["data_time"].avg if "data_time" in self.metric_storage else None
-        iter_time = self.metric_storage["iter_time"].avg if "iter_time" in self.metric_storage else None
+        data_time = (self.metric_storage["data_time"].avg
+                     if "data_time" in self.metric_storage else None)
+        iter_time = (self.metric_storage["iter_time"].avg
+                     if "iter_time" in self.metric_storage else None)
         lr = self.metric_storage["lr"].latest if "lr" in self.metric_storage else None
 
         if iter_time is not None:
@@ -68,25 +68,23 @@ class LoggerHook(HookBase):
             max_mem_mb = None
 
         loss_strings = [
-            f"{key}: {his_buf.avg:.4g}"
-            for key, his_buf in self.metric_storage.items()
+            f"{key}: {his_buf.avg:.4g}" for key, his_buf in self.metric_storage.items()
             if "loss" in key
         ]
 
-        process_string = f"Epoch: [{self.trainer.epoch}][{self.trainer.inner_iter}/{self.trainer.epoch_len - 1}]"
+        process_string = "Epoch: [{}][{}/{}]".format(self.trainer.epoch, self.trainer.inner_iter,
+                                                     self.trainer.epoch_len - 1)
 
         space = " " * 2
-        logger.info(
-            "{process}{eta}{losses}{iter_time}{data_time}{lr}{memory}".format(
-                process=process_string,
-                eta=space + f"ETA: {eta_string}" if eta_string is not None else "",
-                losses=space + "  ".join(loss_strings) if loss_strings else "",
-                iter_time=space + f"iter_time: {iter_time:.4f}" if iter_time is not None else "",
-                data_time=space + f"data_time: {data_time:.4f}  " if data_time is not None else "",
-                lr=space + f"lr: {lr:.5g}" if lr is not None else "",
-                memory=space + f"max_mem: {max_mem_mb:.0f}M" if max_mem_mb is not None else "",
-            )
-        )
+        logger.info("{process}{eta}{losses}{iter_time}{data_time}{lr}{memory}".format(
+            process=process_string,
+            eta=space + f"ETA: {eta_string}" if eta_string is not None else "",
+            losses=space + "  ".join(loss_strings) if loss_strings else "",
+            iter_time=space + f"iter_time: {iter_time:.4f}" if iter_time is not None else "",
+            data_time=space + f"data_time: {data_time:.4f}  " if data_time is not None else "",
+            lr=space + f"lr: {lr:.5g}" if lr is not None else "",
+            memory=space + f"max_mem: {max_mem_mb:.0f}M" if max_mem_mb is not None else "",
+        ))
 
     def _write_tensorboard(self) -> None:
         for key, (iter, value) in self.metric_storage.values_maybe_smooth.items():

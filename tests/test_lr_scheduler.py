@@ -1,33 +1,22 @@
 import math
+
 import mmcv
 import numpy as np
 import torch
 import torch.nn as nn
 from cpu.lr_scheduler import LRWarmupScheduler
-from fvcore.common.param_scheduler import (
-    CompositeParamScheduler,
-    ConstantParamScheduler,
-    CosineParamScheduler,
-    LinearParamScheduler,
-    MultiStepParamScheduler,
-)
+from fvcore.common.param_scheduler import (CompositeParamScheduler, ConstantParamScheduler,
+                                           CosineParamScheduler, LinearParamScheduler,
+                                           MultiStepParamScheduler)
 from mmcv.runner.hooks import HOOKS
-from timm.scheduler import (
-    CosineLRScheduler,
-    MultiStepLRScheduler,
-    PlateauLRScheduler,
-    StepLRScheduler,
-)
-from torch.optim.lr_scheduler import (
-    CosineAnnealingLR,
-    CosineAnnealingWarmRestarts,
-    MultiStepLR,
-    ReduceLROnPlateau,
-    StepLR,
-)
+from timm.scheduler import (CosineLRScheduler, MultiStepLRScheduler, PlateauLRScheduler,
+                            StepLRScheduler)
+from torch.optim.lr_scheduler import (CosineAnnealingLR, CosineAnnealingWarmRestarts, MultiStepLR,
+                                      ReduceLROnPlateau, StepLR)
 
 
 class WarmupParamScheduler(CompositeParamScheduler):
+
     def __init__(self, scheduler, warmup_factor, warmup_length, warmup_method="linear"):
         end_value = scheduler(warmup_length)  # the value to reach when warmup ends
         start_value = warmup_factor * scheduler(0.0)
@@ -45,6 +34,7 @@ class WarmupParamScheduler(CompositeParamScheduler):
 
 
 class LRMultiplier(torch.optim.lr_scheduler._LRScheduler):
+
     def __init__(self, optimizer, multiplier, max_iter, last_iter=-1):
         self._multiplier = multiplier
         self._max_iter = max_iter
@@ -65,7 +55,7 @@ def get_lrs_d2(max_epochs, epoch_len, opt_cfg, sche_cfg):
     if sche_cfg["type"] == "multistep":
         steps = sche_cfg["steps"]
         sche = MultiStepParamScheduler(
-            values=[0.1 ** k for k in range(len(steps) + 1)],
+            values=[0.1**k for k in range(len(steps) + 1)],
             milestones=steps,
             num_updates=max_iters,
         )
@@ -86,6 +76,7 @@ def get_lrs_d2(max_epochs, epoch_len, opt_cfg, sche_cfg):
 
 
 class MMCVRunner:
+
     def __init__(self, max_epochs, epoch_len, opt_cfg, sche_cfg):
         self.max_epochs = max_epochs
         self.epoch_len = epoch_len
@@ -141,24 +132,26 @@ def get_lrs_timm(max_epochs, epoch_len, opt_cfg, sche_cfg, epoch_metircs=None):
 
     type = sche_cfg["type"]
     if type == "step":
-        lr_scheduler = StepLRScheduler(
-            optimizer, decay_t=sche_cfg["decay_t"], decay_rate=0.1,
-            warmup_t=sche_cfg["warmup_t"], warmup_lr_init=sche_cfg["warmup_lr_init"],
-            t_in_epochs=sche_cfg["t_in_epochs"])
+        lr_scheduler = StepLRScheduler(optimizer, decay_t=sche_cfg["decay_t"], decay_rate=0.1,
+                                       warmup_t=sche_cfg["warmup_t"],
+                                       warmup_lr_init=sche_cfg["warmup_lr_init"],
+                                       t_in_epochs=sche_cfg["t_in_epochs"])
     elif type == "multistep":
-        lr_scheduler = MultiStepLRScheduler(
-            optimizer, decay_t=sche_cfg["decay_t"], decay_rate=0.1,
-            warmup_t=sche_cfg["warmup_t"], warmup_lr_init=sche_cfg["warmup_lr_init"],
-            t_in_epochs=sche_cfg["t_in_epochs"])
+        lr_scheduler = MultiStepLRScheduler(optimizer, decay_t=sche_cfg["decay_t"], decay_rate=0.1,
+                                            warmup_t=sche_cfg["warmup_t"],
+                                            warmup_lr_init=sche_cfg["warmup_lr_init"],
+                                            t_in_epochs=sche_cfg["t_in_epochs"])
     elif type == "cosine_restart":
-        lr_scheduler = CosineLRScheduler(
-            optimizer, t_initial=sche_cfg["t_initial"], warmup_t=sche_cfg["warmup_t"],
-            warmup_lr_init=sche_cfg["warmup_lr_init"], t_in_epochs=sche_cfg["t_in_epochs"],
-            cycle_limit=sche_cfg["cycle_limit"])
+        lr_scheduler = CosineLRScheduler(optimizer, t_initial=sche_cfg["t_initial"],
+                                         warmup_t=sche_cfg["warmup_t"],
+                                         warmup_lr_init=sche_cfg["warmup_lr_init"],
+                                         t_in_epochs=sche_cfg["t_in_epochs"],
+                                         cycle_limit=sche_cfg["cycle_limit"])
     elif type == "plateau":
-        lr_scheduler = PlateauLRScheduler(
-            optimizer, decay_rate=0.1, patience_t=sche_cfg["patience_t"], mode="min",
-            warmup_t=sche_cfg["warmup_t"], warmup_lr_init=sche_cfg["warmup_lr_init"])
+        lr_scheduler = PlateauLRScheduler(optimizer, decay_rate=0.1,
+                                          patience_t=sche_cfg["patience_t"], mode="min",
+                                          warmup_t=sche_cfg["warmup_t"],
+                                          warmup_lr_init=sche_cfg["warmup_lr_init"])
 
     if epoch_metircs:
         assert len(epoch_metircs) == max_epochs
@@ -294,27 +287,30 @@ def test_fix():
 
             #### StepLR
             sche_cfg = dict(type="step", step_size=3, by_epoch=by_epoch, epoch_len=epoch_len,
-                            warmup_t=5, warmup_by_epoch=by_epoch, warmup_mode="fix", warmup_init_lr=0.005)
+                            warmup_t=5, warmup_by_epoch=by_epoch, warmup_mode="fix",
+                            warmup_init_lr=0.005)
             lrs_cpu = get_lrs_cpu(epoch, epoch_len, opt_cfg, sche_cfg)
 
-            sche_cfg = dict(type="step", decay_t=3, decay_rate=0.1,
-                            warmup_t=5, warmup_lr_init=0.005, t_in_epochs=by_epoch)
+            sche_cfg = dict(type="step", decay_t=3, decay_rate=0.1, warmup_t=5,
+                            warmup_lr_init=0.005, t_in_epochs=by_epoch)
             lrs_timm = get_lrs_timm(epoch, epoch_len, opt_cfg, sche_cfg)
             assert allclose(lrs_cpu, lrs_timm)
 
             #### MultiStepLR
-            sche_cfg = dict(type="multistep", milestones=[12, 16], by_epoch=by_epoch, epoch_len=epoch_len,
-                            warmup_t=5, warmup_by_epoch=by_epoch, warmup_mode="fix", warmup_init_lr=0.005)
+            sche_cfg = dict(type="multistep", milestones=[12, 16], by_epoch=by_epoch,
+                            epoch_len=epoch_len, warmup_t=5, warmup_by_epoch=by_epoch,
+                            warmup_mode="fix", warmup_init_lr=0.005)
             lrs_cpu = get_lrs_cpu(epoch, epoch_len, opt_cfg, sche_cfg)
 
-            sche_cfg = dict(type="multistep", decay_t=[13, 17], decay_rate=0.1,
-                            warmup_t=5, warmup_lr_init=0.005, t_in_epochs=by_epoch)
+            sche_cfg = dict(type="multistep", decay_t=[13, 17], decay_rate=0.1, warmup_t=5,
+                            warmup_lr_init=0.005, t_in_epochs=by_epoch)
             lrs_timm = get_lrs_timm(epoch, epoch_len, opt_cfg, sche_cfg)
             assert allclose(lrs_cpu, lrs_timm)
 
             #### CosineAnnealingRestarts
             sche_cfg = dict(type="cosine_restart", T_0=10, by_epoch=by_epoch, epoch_len=epoch_len,
-                            warmup_t=5, warmup_by_epoch=by_epoch, warmup_mode="fix", warmup_init_lr=0.005)
+                            warmup_t=5, warmup_by_epoch=by_epoch, warmup_mode="fix",
+                            warmup_init_lr=0.005)
             lrs_cpu = get_lrs_cpu(epoch, epoch_len, opt_cfg, sche_cfg)
 
             sche_cfg = dict(type="cosine_restart", t_initial=10, warmup_t=5, warmup_lr_init=0.005,
@@ -325,27 +321,29 @@ def test_fix():
             if by_epoch:
                 #### ReduceLROnPlateau - test 1
                 sche_cfg = dict(type="plateau", patience=2, by_epoch=by_epoch, epoch_len=epoch_len,
-                                warmup_t=5, warmup_by_epoch=by_epoch, warmup_mode="fix", warmup_init_lr=0.005)
+                                warmup_t=5, warmup_by_epoch=by_epoch, warmup_mode="fix",
+                                warmup_init_lr=0.005)
                 epoch_metrics = list(range(20, 0, -1))
                 epoch_metrics[7:11] = [13, 13, 13, 13]
                 epoch_metrics[13:17] = [7, 7, 7, 7]
                 lrs_cpu = get_lrs_cpu(epoch, epoch_len, opt_cfg, sche_cfg, epoch_metrics)
 
-                sche_cfg = dict(type="plateau", decay_rate=0.1, patience_t=2,
-                                mode="min", warmup_t=5, warmup_lr_init=0.005)
+                sche_cfg = dict(type="plateau", decay_rate=0.1, patience_t=2, mode="min",
+                                warmup_t=5, warmup_lr_init=0.005)
                 lrs_timm = get_lrs_timm(epoch, epoch_len, opt_cfg, sche_cfg, epoch_metrics)
                 assert allclose(lrs_cpu, lrs_timm)
 
                 #### ReduceLROnPlateau - test 2
                 sche_cfg = dict(type="plateau", patience=2, by_epoch=by_epoch, epoch_len=epoch_len,
-                                warmup_t=8, warmup_by_epoch=by_epoch, warmup_mode="fix", warmup_init_lr=0.005)
+                                warmup_t=8, warmup_by_epoch=by_epoch, warmup_mode="fix",
+                                warmup_init_lr=0.005)
                 epoch_metrics = list(range(20, 0, -1))
                 epoch_metrics[7:11] = [13, 13, 13, 13]
                 epoch_metrics[13:17] = [7, 7, 7, 7]
                 lrs_cpu = get_lrs_cpu(epoch, epoch_len, opt_cfg, sche_cfg, epoch_metrics)
 
-                sche_cfg = dict(type="plateau", decay_rate=0.1, patience_t=2,
-                                mode="min", warmup_t=8, warmup_lr_init=0.005)
+                sche_cfg = dict(type="plateau", decay_rate=0.1, patience_t=2, mode="min",
+                                warmup_t=8, warmup_lr_init=0.005)
                 lrs_timm = get_lrs_timm(epoch, epoch_len, opt_cfg, sche_cfg, epoch_metrics)
                 assert allclose(lrs_cpu, lrs_timm)
 
@@ -361,7 +359,8 @@ def test_factor():
 
             #### StepLR
             sche_cfg = dict(type="step", step_size=3, by_epoch=by_epoch, epoch_len=epoch_len,
-                            warmup_t=5, warmup_by_epoch=warmup_by_epoch, warmup_mode="factor", warmup_factor=0.001)
+                            warmup_t=5, warmup_by_epoch=warmup_by_epoch, warmup_mode="factor",
+                            warmup_factor=0.001)
             lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
             sche_cfg = dict(type='StepLrUpdaterHook', warmup='linear', warmup_iters=5,
@@ -371,8 +370,9 @@ def test_factor():
             assert allclose(lrs_cpu, lrs_mmcv)
 
             #### MultiStepLR
-            sche_cfg = dict(type="multistep", milestones=[8, 11], by_epoch=by_epoch, epoch_len=epoch_len,
-                            warmup_t=5, warmup_by_epoch=warmup_by_epoch, warmup_mode="factor", warmup_factor=0.001)
+            sche_cfg = dict(type="multistep", milestones=[8, 11], by_epoch=by_epoch,
+                            epoch_len=epoch_len, warmup_t=5, warmup_by_epoch=warmup_by_epoch,
+                            warmup_mode="factor", warmup_factor=0.001)
             lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
             sche_cfg = dict(type='StepLrUpdaterHook', warmup='linear', warmup_iters=5,
@@ -383,13 +383,14 @@ def test_factor():
 
             #### CosineAnnealingRestarts
             sche_cfg = dict(type="cosine_restart", T_0=10, by_epoch=by_epoch, epoch_len=epoch_len,
-                            warmup_t=5, warmup_by_epoch=warmup_by_epoch, warmup_mode="factor", warmup_factor=0.001)
+                            warmup_t=5, warmup_by_epoch=warmup_by_epoch, warmup_mode="factor",
+                            warmup_factor=0.001)
             lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
             sche_cfg = dict(type='CosineRestartLrUpdaterHook', warmup='linear', warmup_iters=5,
                             warmup_ratio=0.001, periods=[10] * 2 if by_epoch else [10] * 6,
-                            restart_weights=[1] * 2 if by_epoch else [1] * 6,
-                            min_lr=0, by_epoch=by_epoch)
+                            restart_weights=[1] * 2 if by_epoch else [1] * 6, min_lr=0,
+                            by_epoch=by_epoch)
             runner = MMCVRunner(max_epochs, epoch_len, opt_cfg, sche_cfg)
             lrs_mmcv = runner.run()
             assert allclose(lrs_cpu, lrs_mmcv)
@@ -405,8 +406,9 @@ def test_auto():
         opt_cfg = dict(num_pram_groups=num_pram_groups, base_lr=base_lr)
 
         #### MultiStepLR
-        sche_cfg = dict(type="multistep", milestones=[30, 50], by_epoch=by_epoch, epoch_len=epoch_len,
-                        warmup_t=10, warmup_by_epoch=warmup_by_epoch, warmup_mode="auto", warmup_factor=0.001)
+        sche_cfg = dict(type="multistep", milestones=[30, 50], by_epoch=by_epoch,
+                        epoch_len=epoch_len, warmup_t=10, warmup_by_epoch=warmup_by_epoch,
+                        warmup_mode="auto", warmup_factor=0.001)
         lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
         sche_cfg = dict(type="multistep", steps=[30, 50], warmup_factor=0.001, warmup_iters=10)
@@ -414,8 +416,8 @@ def test_auto():
         assert allclose(lrs_cpu, lrs_d2)
 
         #### CosineAnnealing
-        sche_cfg = dict(type="cosine", by_epoch=by_epoch, epoch_len=epoch_len,
-                        warmup_t=10, warmup_by_epoch=warmup_by_epoch, warmup_mode="auto", warmup_factor=0.001)
+        sche_cfg = dict(type="cosine", by_epoch=by_epoch, epoch_len=epoch_len, warmup_t=10,
+                        warmup_by_epoch=warmup_by_epoch, warmup_mode="auto", warmup_factor=0.001)
         lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
         sche_cfg = dict(type="cosine", warmup_factor=0.001, warmup_iters=10)
@@ -434,8 +436,8 @@ def test_other_cases():
         lr_scheduler.epoch_update()
 
     # from detectron2 test_warmup_multistep()
-    sche_cfg = dict(type="multistep", milestones=[10, 15, 20], by_epoch=False,
-                    warmup_t=5, warmup_by_epoch=False, warmup_mode="auto", warmup_factor=0.001)
+    sche_cfg = dict(type="multistep", milestones=[10, 15, 20], by_epoch=False, warmup_t=5,
+                    warmup_by_epoch=False, warmup_mode="auto", warmup_factor=0.001)
     opt_cfg = dict(num_pram_groups=1, base_lr=5)
     lrs_cpu = get_lrs_cpu(30, 1, opt_cfg, sche_cfg)
     lrs_cpu = [lr[0] for lr in lrs_cpu]
@@ -446,8 +448,8 @@ def test_other_cases():
     assert np.allclose(lrs_cpu[20:], 0.005)
 
     # from detectron2 test_warmup_cosine()
-    sche_cfg = dict(type="cosine", by_epoch=False, warmup_t=5,
-                    warmup_by_epoch=False, warmup_mode="auto", warmup_factor=0.001)
+    sche_cfg = dict(type="cosine", by_epoch=False, warmup_t=5, warmup_by_epoch=False,
+                    warmup_mode="auto", warmup_factor=0.001)
     opt_cfg = dict(num_pram_groups=1, base_lr=5)
     lrs_cpu = get_lrs_cpu(30, 1, opt_cfg, sche_cfg)
     lrs_cpu = [lr[0] for lr in lrs_cpu]
@@ -462,12 +464,12 @@ def test_other_cases():
     max_epochs = 3
     epoch_len = 3
     opt_cfg = dict(num_pram_groups=1, base_lr=5)
-    sche_cfg = dict(type="step", step_size=1, by_epoch=True, epoch_len=epoch_len,
-                    warmup_t=3, warmup_by_epoch=False, warmup_mode="factor", warmup_factor=0.001)
+    sche_cfg = dict(type="step", step_size=1, by_epoch=True, epoch_len=epoch_len, warmup_t=3,
+                    warmup_by_epoch=False, warmup_mode="factor", warmup_factor=0.001)
     lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
-    sche_cfg = dict(type='StepLrUpdaterHook', warmup='linear', warmup_iters=3,
-                    warmup_ratio=0.001, step=1, by_epoch=True)
+    sche_cfg = dict(type='StepLrUpdaterHook', warmup='linear', warmup_iters=3, warmup_ratio=0.001,
+                    step=1, by_epoch=True)
     runner = MMCVRunner(max_epochs, epoch_len, opt_cfg, sche_cfg)
     lrs_mmcv = runner.run()
     assert allclose(lrs_cpu, lrs_mmcv)

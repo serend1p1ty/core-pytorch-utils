@@ -27,8 +27,7 @@ class LRUpdateHook(HookBase):
         assert eval_hook.priority < self.priority, "EvalHook must be called before LRUpdateHook"
         assert eval_hook._period == 1, "EvalHook should be called after each epoch."
         assert "Eval Metric" in self.metric_storage, (
-            "EvalHook should return a dict containing 'Eval Metric' field."
-        )
+            "EvalHook should return a dict containing 'Eval Metric' field.")
 
     def after_epoch(self) -> None:
         if self.trainer.lr_scheduler._is_plateau:

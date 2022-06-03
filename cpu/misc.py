@@ -79,10 +79,8 @@ def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> 
     if deterministic:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
-        print(
-            "[cpu.misc] The CUDNN is set to deterministic. This will increase "
-            "reproducibility, but may slow down your training considerably."
-        )
+        print("[cpu.misc] The CUDNN is set to deterministic. This will increase "
+              "reproducibility, but may slow down your training considerably.")
 
 
 def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:

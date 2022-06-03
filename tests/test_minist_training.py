@@ -1,4 +1,5 @@
 import tempfile
+
 import numpy as np
 import pytest
 import torch
@@ -11,6 +12,7 @@ from torchvision import datasets, transforms
 
 
 class _EvalHook(HookBase):
+
     def __init__(self, eval_func):
         self.eval_func = eval_func
         self.all_losses = []
@@ -21,12 +23,13 @@ class _EvalHook(HookBase):
         self.all_losses.append(self.metric_storage["total_loss"].latest)
 
     def after_epoch(self):
-        test_loss, accuracy= self.eval_func()
+        test_loss, accuracy = self.eval_func()
         self.all_test_losses.append(test_loss)
         self.all_accuracy.append(accuracy)
 
 
 class Net(nn.Module):
+
     def __init__(self, device):
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, 3, 1)
@@ -106,7 +109,7 @@ def _setup(dir, device, train_batch_size=64, test_batch_size=1000):
 
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
+        transforms.Normalize((0.1307,), (0.3081,)),
     ])
     train_dataset = datasets.MNIST(dir, train=True, download=True, transform=transform)
     test_dataset = datasets.MNIST(dir, train=False, transform=transform)
@@ -122,8 +125,9 @@ def _setup(dir, device, train_batch_size=64, test_batch_size=1000):
 def test_minist_training(device="cpu", max_epochs=1):
     with tempfile.TemporaryDirectory() as dir:
         model, optimizer, lr_scheduler, train_loader, test_loader = _setup(dir, device)
-        all_losses, all_test_losses, all_accuracy = _plain_train_loop(
-            model, train_loader, test_loader, optimizer, lr_scheduler, max_epochs)
+        all_losses, all_test_losses, all_accuracy = _plain_train_loop(model, train_loader,
+                                                                      test_loader, optimizer,
+                                                                      lr_scheduler, max_epochs)
 
         model, optimizer, lr_scheduler, train_loader, test_loader = _setup(dir, device)
         trainer = Trainer(model, optimizer, lr_scheduler, train_loader, max_epochs, dir)

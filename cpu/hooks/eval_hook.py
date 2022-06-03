@@ -1,4 +1,5 @@
 from typing import Callable
+
 from .hookbase import HookBase
 
 

@@ -4,6 +4,7 @@ The code is modified from: https://github.com/pytorch/examples/blob/main/mnist/m
 It only supports single-gpu training.
 """
 import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,10 +12,12 @@ import torch.optim as optim
 from cpu import ConfigArgumentParser, EvalHook, Trainer, save_args, set_random_seed, setup_logger
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
-from inference_hook import InferenceHook
+
+from .inference_hook import InferenceHook
 
 
 class Net(nn.Module):
+
     def __init__(self, device):
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, 3, 1)
@@ -29,8 +32,10 @@ class Net(nn.Module):
 
     def forward(self, data):
         # CPU has the following assumptions about the input and output of the model:
-        # 1. In the training phase, the model takes the whole batch as input, and output training loss.
-        # 2. In the test phase, the model still takes the whole batch as input, but the output is unlimited.
+        # 1. In training phase: the model takes the whole batch as input,
+        # and outputs training loss.
+        # 2. In test phase: the model still takes the whole batch as input,
+        # but the output is unlimited.
         img, target = data
         img = img.to(self.device)
         target = target.to(self.device)
@@ -70,64 +75,40 @@ def test(model, test_loader, logger):
     test_loss /= len(test_loader.dataset)
 
     logger.info("\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+        test_loss, correct, len(test_loader.dataset), 100. * correct / len(test_loader.dataset)))
 
 
 def parse_args():
     parser = ConfigArgumentParser(description="PyTorch MNIST Example")
-    parser.add_argument(
-        "--work-dir", type=str, default="work_dir", metavar="DIR",
-        help="Working directory to save checkpoints and logs (default: 'work_dir')."
-    )
-    parser.add_argument(
-        "--dataset-dir", type=str, default="./data", metavar="DIR",
-        help="Directory to save dataset (default: './data')."
-    )
-    parser.add_argument(
-        "--batch-size", type=int, default=64, metavar="N",
-        help="Input batch size for training (default: 64)."
-    )
-    parser.add_argument(
-        "--test-batch-size", type=int, default=1000, metavar="N",
-        help="Input batch size for test (default: 1000)."
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=14, metavar="N",
-        help="Number of epochs to train (default: 14)."
-    )
-    parser.add_argument(
-        "--lr", type=float, default=1.0, metavar="LR",
-        help="Learning rate (default: 1.0)."
-    )
-    parser.add_argument(
-        "--gamma", type=float, default=0.7, metavar="M",
-        help="Learning rate step gamma (default: 0.7)."
-    )
-    parser.add_argument(
-        "--no-cuda", action="store_true", default=False,
-        help="Disables CUDA training."
-    )
-    parser.add_argument(
-        "--seed", type=int, default=-1, metavar="S",
-        help="Random seed, set to negative to randomize everything (default: -1)."
-    )
-    parser.add_argument(
-        "--deterministic", action="store_true",
-        help="Turn on the CUDNN deterministic setting, which increases reproducibility, "
-             "but can slow down your training considerably."
-    )
-    parser.add_argument(
-        "--log-interval", type=int, default=10, metavar="N",
-        help="How many batches to wait before logging training status (default: 10)."
-    )
+    parser.add_argument("--work-dir", type=str, default="work_dir", metavar="DIR",
+                        help="Directory to save checkpoints and logs (default: 'work_dir').")
+    parser.add_argument("--dataset-dir", type=str, default="./data", metavar="DIR",
+                        help="Directory to save dataset (default: './data').")
+    parser.add_argument("--batch-size", type=int, default=64, metavar="N",
+                        help="Input batch size for training (default: 64).")
+    parser.add_argument("--test-batch-size", type=int, default=1000, metavar="N",
+                        help="Input batch size for test (default: 1000).")
+    parser.add_argument("--epochs", type=int, default=14, metavar="N",
+                        help="Number of epochs to train (default: 14).")
+    parser.add_argument("--lr", type=float, default=1.0, metavar="LR",
+                        help="Learning rate (default: 1.0).")
+    parser.add_argument("--gamma", type=float, default=0.7, metavar="M",
+                        help="Learning rate step gamma (default: 0.7).")
+    parser.add_argument("--no-cuda", action="store_true", default=False,
+                        help="Disables CUDA training.")
+    parser.add_argument("--seed", type=int, default=-1, metavar="S",
+                        help="Random seed, set to negative to randomize everything (default: -1).")
+    parser.add_argument("--deterministic", action="store_true",
+                        help="Turn on the CUDNN deterministic setting.")
+    parser.add_argument("--log-interval", type=int, default=10, metavar="N",
+                        help="Interval for logging to console and tensorboard (default: 10).")
     return parser.parse_args()
 
 
 def build_dataset(dir):
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
+        transforms.Normalize((0.1307,), (0.3081,)),
     ])
     train_dataset = datasets.MNIST(dir, train=True, download=True, transform=transform)
     test_dataset = datasets.MNIST(dir, train=False, transform=transform)
@@ -136,7 +117,8 @@ def build_dataset(dir):
 
 def build_dataloader(args):
     train_dataset, test_dataset = build_dataset(args.dataset_dir)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
+                                               shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size)
     return train_loader, test_loader
 
@@ -159,10 +141,8 @@ def main():
     lr_scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
     # 4. Create Trainer
-    trainer = Trainer(
-        model, optimizer, lr_scheduler, train_loader, args.epochs,
-        work_dir=args.work_dir, log_period=args.log_interval
-    )
+    trainer = Trainer(model, optimizer, lr_scheduler, train_loader, args.epochs,
+                      work_dir=args.work_dir, log_period=args.log_interval)
     trainer.register_hooks([
         EvalHook(1, lambda: test(model, test_loader, logger)),
         # Refer to inference_hook.py
