@@ -2,6 +2,7 @@
 
 [![Docs](https://readthedocs.org/projects/core-pytorch-utils/badge/?version=latest)](https://core-pytorch-utils.readthedocs.io/en/latest/?badge=latest)
 [![CircleCI](https://circleci.com/gh/serend1p1ty/core-pytorch-utils.svg?style=svg)](https://circleci.com/gh/serend1p1ty/core-pytorch-utils)
+[![GithubAction](https://github.com/serend1p1ty/core-pytorch-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/serend1p1ty/core-pytorch-utils/actions)
 [![Codecov](https://codecov.io/gh/serend1p1ty/core-pytorch-utils/branch/main/graph/badge.svg)](https://codecov.io/gh/serend1p1ty/core-pytorch-utils)
 [![License](https://img.shields.io/github/license/serend1p1ty/core-pytorch-utils.svg)](https://github.com/serend1p1ty/core-pytorch-utils/blob/main/LICENSE)
 
