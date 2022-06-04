@@ -8,13 +8,6 @@ yapf_version="0.32.0"
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 {
-  flake8 --version | grep $flake8_version > /dev/null
-} || {
-  echo "Linter requires 'flake8==$flake8_version' !"
-  exit 1
-}
-
-{
   isort --version | grep $isort_version > /dev/null
 } || {
   echo "Linter requires 'isort==$isort_version' !"
@@ -28,11 +21,18 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
   exit 1
 }
 
-echo "Running flake8 ..."
-flake8 .
+{
+  flake8 --version | grep $flake8_version > /dev/null
+} || {
+  echo "Linter requires 'flake8==$flake8_version' !"
+  exit 1
+}
 
 echo "Running isort ..."
 isort .
 
 echo "Running yapf ..."
 yapf --recursive --in-place .
+
+echo "Running flake8 ..."
+flake8 .
