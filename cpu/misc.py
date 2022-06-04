@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import sys
@@ -9,6 +10,8 @@ import torch
 from tabulate import tabulate
 
 __all__ = ["collect_env", "set_random_seed", "symlink"]
+
+logger = logging.getLogger(__name__)
 
 
 def collect_env() -> str:
@@ -69,18 +72,18 @@ def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> 
     """
     if seed is None or seed < 0:
         new_seed = np.random.randint(2**31)
-        print(f"[cpu.misc] Got invalid seed: {seed}, so use the generated seed: {new_seed}")
+        logger.info(f"Got invalid seed: {seed}, so use the generated seed: {new_seed}")
         seed = new_seed
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
-    print(f"[cpu.misc] Set random seed to {seed}.")
+    logger.info(f"Set random seed to {seed}.")
     if deterministic:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
-        print("[cpu.misc] The CUDNN is set to deterministic. This will increase "
-              "reproducibility, but may slow down your training considerably.")
+        logger.info("The CUDNN is set to deterministic. This will increase reproducibility, "
+                    "but may slow down your training considerably.")
 
 
 def symlink(src: str, dst: str, overwrite: bool = True, **kwargs) -> None:

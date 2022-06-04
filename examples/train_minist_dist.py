@@ -3,16 +3,18 @@
 The code supports both single-gpu and multi-gpu training.
 It can be used as your template to start a new project.
 """
+import logging
 import os
 
 import torch
 import torch.optim as optim
 from cpu import EvalHook, Trainer, init_distributed, save_args, set_random_seed, setup_logger
+from inference_hook import InferenceHook
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.lr_scheduler import StepLR
+from train_minist import Net, build_dataset, parse_args, test
 
-from .inference_hook import InferenceHook
-from .train_minist import Net, build_dataset, parse_args, test
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -23,11 +25,11 @@ def main():
     rank, local_rank, world_size = init_distributed()  # [Step 1]
     is_distributed = world_size > 1
 
+    setup_logger(output_dir=args.work_dir, rank=rank)
     save_args(args, os.path.join(args.work_dir, "runtime_config.yaml"), rank=rank)
     # Make sure each worker has a different, yet deterministic seed
     # See: https://github.com/open-mmlab/mmdetection/pull/7432
     set_random_seed(None if args.seed < 0 else args.seed + rank, args.deterministic)
-    logger = setup_logger("train_minist", args.work_dir, rank=rank)
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
@@ -54,7 +56,7 @@ def main():
     trainer = Trainer(model, optimizer, lr_scheduler, train_loader, args.epochs,
                       work_dir=args.work_dir, log_period=args.log_interval)
     trainer.register_hooks([
-        EvalHook(1, lambda: test(model, test_loader, logger)),
+        EvalHook(1, lambda: test(model, test_loader)),
         # Refer to inference_hook.py
         InferenceHook(test_dataset)
     ] if rank == 0 else [])  # [Step 4]

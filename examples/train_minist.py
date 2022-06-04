@@ -3,6 +3,7 @@
 The code is modified from: https://github.com/pytorch/examples/blob/main/mnist/main.py
 It only supports single-gpu training.
 """
+import logging
 import os
 
 import torch
@@ -10,10 +11,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from cpu import ConfigArgumentParser, EvalHook, Trainer, save_args, set_random_seed, setup_logger
+from inference_hook import InferenceHook
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
-from .inference_hook import InferenceHook
+logger = logging.getLogger(__name__)
 
 
 class Net(nn.Module):
@@ -59,7 +61,7 @@ class Net(nn.Module):
         return output
 
 
-def test(model, test_loader, logger):
+def test(model, test_loader):
     model.eval()
     test_loss = 0
     correct = 0
@@ -82,7 +84,7 @@ def parse_args():
     parser = ConfigArgumentParser(description="PyTorch MNIST Example")
     parser.add_argument("--work-dir", type=str, default="work_dir", metavar="DIR",
                         help="Directory to save checkpoints and logs (default: 'work_dir').")
-    parser.add_argument("--dataset-dir", type=str, default="./data", metavar="DIR",
+    parser.add_argument("--dataset-dir", type=str, default="../data", metavar="DIR",
                         help="Directory to save dataset (default: './data').")
     parser.add_argument("--batch-size", type=int, default=64, metavar="N",
                         help="Input batch size for training (default: 64).")
@@ -128,9 +130,9 @@ def main():
     args = parse_args()
 
     # 2. Basic setup
+    setup_logger(output_dir=args.work_dir)
     save_args(args, os.path.join(args.work_dir, "runtime_config.yaml"))
     set_random_seed(args.seed, args.deterministic)
-    logger = setup_logger("train_minist", args.work_dir)
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
@@ -144,7 +146,7 @@ def main():
     trainer = Trainer(model, optimizer, lr_scheduler, train_loader, args.epochs,
                       work_dir=args.work_dir, log_period=args.log_interval)
     trainer.register_hooks([
-        EvalHook(1, lambda: test(model, test_loader, logger)),
+        EvalHook(1, lambda: test(model, test_loader)),
         # Refer to inference_hook.py
         InferenceHook(test_loader.dataset)
     ])

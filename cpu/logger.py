@@ -24,7 +24,7 @@ class _ColorfulFormatter(logging.Formatter):
 
 
 def setup_logger(name: Optional[str] = None, output_dir: Optional[str] = None, rank: int = 0,
-                 log_level: int = logging.DEBUG, color: bool = True) -> logging.Logger:
+                 log_level: int = logging.INFO, color: bool = True) -> logging.Logger:
     """Initialize the logger.
 
     If the logger has not been initialized, this method will initialize the
@@ -37,7 +37,7 @@ def setup_logger(name: Optional[str] = None, output_dir: Optional[str] = None, r
         name (str): Logger name. Defaults to None to setup root logger.
         output_dir (str): The directory to save log.
         rank (int): Process rank in the distributed training. Defaults to 0.
-        log_level (int): Verbosity level of the logger. Defaults to ``logging.DEBUG``.
+        log_level (int): Verbosity level of the logger. Defaults to ``logging.INFO``.
         color (bool): If True, color the output. Defaults to True.
 
     Returns:
