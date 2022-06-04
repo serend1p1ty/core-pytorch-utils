@@ -26,11 +26,11 @@ def test_config_parser():
         assert not os.path.exists(config_file)
 
         # save config for master process
-        save_args(args, config_file, excluded_fields=["x"], rank=0)
+        save_args(args, config_file, rank=0)
         assert os.path.exists(config_file)
         with open(config_file, "r") as f:
             config_vars = yaml.safe_load(f)
-        assert config_vars == {"y1": 3, "z": [2.0, 10.0], "k": None}
+        assert config_vars == {"x": True, "y1": 3, "z": [2.0, 10.0], "k": None}
 
         data = {"x": True, "z": [2.0, 10.0], "k": 3.0}
         with open(config_file, "w") as f:
