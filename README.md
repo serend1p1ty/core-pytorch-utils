@@ -33,6 +33,10 @@ It is **strongly** recommended that you run this code before using the CPU libra
 
 Learn more from our [documentaion](https://core-pytorch-utils.readthedocs.io/en/latest/).
 
+## Contributing
+
+Pull request is welcomed! Before submitting a PR, **DO NOT** forget to run `./dev/linter.sh` that provides syntax checking and code style optimation.
+
 ## License
 
 CPU is released under the [MIT License](LICENSE).
