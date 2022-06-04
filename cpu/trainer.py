@@ -371,6 +371,7 @@ class Trainer:
         """
         data = {
             "epoch": self.epoch,
+            "num_gpus": torch.cuda.device_count(),
             "model": self.model_or_module.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
@@ -410,6 +411,13 @@ class Trainer:
         else:
             logger.info("Skip loading checkpoint.")
             return
+
+        # check if the number of GPUs is consistent with the checkpoint
+        num_gpus = torch.cuda.device_count()
+        ckpt_num_gpus = checkpoint["num_gpus"]
+        assert num_gpus == ckpt_num_gpus, (
+            f"You are trying to load a checkpoint trained with {ckpt_num_gpus} GPUs, "
+            f"but currently only have {num_gpus} GPUs.")
 
         # 1. load epoch
         self.start_epoch = checkpoint["epoch"] + 1
