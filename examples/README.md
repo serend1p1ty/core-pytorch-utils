@@ -16,7 +16,7 @@ To show how to customize hooks, we implement a hook (`inference_hook.py`) to vis
 Run the script by the following command.
 
 ```
-python example/train_minist.py --config example/config.yaml
+python examples/train_minist.py --config examples/config.yaml
 ```
 
 ## Multi-gpu training
@@ -38,7 +38,7 @@ Run the script by the following command.
 
 ```bash
 # Assume you use 2 GPUs. Actually batch size = batch size per GPU (32) * number of GPUs (2) = 64
-python -m torch.distributed.launch --nproc_per_node $GPU example/train_minist_dist.py --config example/config.yaml --batch-size 32
+python -m torch.distributed.launch --nproc_per_node 2 --use_env examples/train_minist_dist.py --config examples/config.yaml --batch-size 32
 # OR
-torchrun --nproc_per_node $GPU example/train_minist_dist.py --config example/config.yaml --batch-size 32
+torchrun --nproc_per_node 2 examples/train_minist_dist.py --config examples/config.yaml --batch-size 32
 ```
