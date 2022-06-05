@@ -3,14 +3,14 @@ name: CI
 on:
   push:
     paths-ignore:
-      - "*.md"
-      - "docs/"
-      - "examples/"
+      - "**.md"
+      - "docs/**"
+      - "examples/**"
   pull_request:
     paths-ignore:
-      - "*.md"
-      - "docs/"
-      - "examples/"
+      - "**.md"
+      - "docs/**"
+      - "examples/**"
 
 jobs:
   linter:
