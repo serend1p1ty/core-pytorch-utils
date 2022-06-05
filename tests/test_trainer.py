@@ -4,16 +4,17 @@ import os
 import re
 import tempfile
 
-import cpu.logger as logger
 import mock
 import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-from cpu.hooks import EvalHook, HookBase
-from cpu.trainer import MetricStorage, Trainer
 from torch import nn
 from torch.utils.data import DataLoader
+
+import cpu.logger as logger
+from cpu.hooks import EvalHook, HookBase
+from cpu.trainer import MetricStorage, Trainer
 
 try:
     import tensorflow.compat.v1 as tf

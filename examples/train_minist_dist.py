@@ -8,11 +8,12 @@ import os
 
 import torch
 import torch.optim as optim
-from cpu import EvalHook, Trainer, init_distributed, save_args, set_random_seed, setup_logger
 from inference_hook import InferenceHook
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.lr_scheduler import StepLR
 from train_minist import Net, build_dataset, parse_args, test
+
+from cpu import EvalHook, Trainer, init_distributed, save_args, set_random_seed, setup_logger
 
 logger = logging.getLogger(__name__)
 

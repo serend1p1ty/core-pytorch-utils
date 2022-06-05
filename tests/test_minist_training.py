@@ -6,9 +6,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from cpu import HookBase, Trainer, set_random_seed
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
+
+from cpu import HookBase, Trainer, set_random_seed
 
 
 class _EvalHook(HookBase):

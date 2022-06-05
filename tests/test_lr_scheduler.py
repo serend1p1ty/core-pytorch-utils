@@ -4,7 +4,6 @@ import mmcv
 import numpy as np
 import torch
 import torch.nn as nn
-from cpu.lr_scheduler import LRWarmupScheduler
 from fvcore.common.param_scheduler import (CompositeParamScheduler, ConstantParamScheduler,
                                            CosineParamScheduler, LinearParamScheduler,
                                            MultiStepParamScheduler)
@@ -13,6 +12,8 @@ from timm.scheduler import (CosineLRScheduler, MultiStepLRScheduler, PlateauLRSc
                             StepLRScheduler)
 from torch.optim.lr_scheduler import (CosineAnnealingLR, CosineAnnealingWarmRestarts, MultiStepLR,
                                       ReduceLROnPlateau, StepLR)
+
+from cpu.lr_scheduler import LRWarmupScheduler
 
 
 class WarmupParamScheduler(CompositeParamScheduler):

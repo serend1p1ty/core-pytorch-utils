@@ -3,6 +3,7 @@ import tempfile
 
 import pytest
 import yaml
+
 from cpu import ConfigArgumentParser, save_args
 
 

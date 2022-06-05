@@ -10,10 +10,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from cpu import ConfigArgumentParser, EvalHook, Trainer, save_args, set_random_seed, setup_logger
 from inference_hook import InferenceHook
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
+
+from cpu import ConfigArgumentParser, EvalHook, Trainer, save_args, set_random_seed, setup_logger
 
 logger = logging.getLogger(__name__)
 
