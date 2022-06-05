@@ -1,4 +1,4 @@
-# Developing script
+# Developing Script
 
 Before submitting a pull request, you should run `linter.sh`, which checks syntax and code style.
 
