@@ -27,12 +27,13 @@ jobs:
           python -m pip install flake8==4.0.1 isort==5.10.1 yapf==0.32.0
       - name: Lint
         run: |
+          echo "Running isort"
+          isort --check-only .
+          echo "Running yapf"
+          # yapf has no --check option, so we will exit abnormally if --diff has output
+          [ -n "$(yapf --recursive --diff .)" ] && exit 1
           echo "Running flake8"
           flake8 .
-          echo "Running isort"
-          isort .
-          echo "Running yapf"
-          yapf --recursive --diff .
   cpu_test:
     runs-on: ubuntu-18.04
     strategy:
