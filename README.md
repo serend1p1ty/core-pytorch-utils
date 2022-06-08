@@ -5,7 +5,7 @@
 [![Codecov](https://codecov.io/gh/serend1p1ty/core-pytorch-utils/branch/main/graph/badge.svg)](https://codecov.io/gh/serend1p1ty/core-pytorch-utils)
 [![License](https://img.shields.io/github/license/serend1p1ty/core-pytorch-utils.svg)](https://github.com/serend1p1ty/core-pytorch-utils/blob/main/LICENSE)
 
-# Core PyTorch Utils (CPU)
+# Core PyTorch Utils (CPU) *[Completed :tada:]*
 
 This package is a light-weight core library that provides the most common and essential functionalities shared in various deep learning tasks:
 
