@@ -9,9 +9,10 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from inference_hook import InferenceHook
+from torch.optim import Adadelta
 from torch.optim.lr_scheduler import StepLR
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 from cpu import ConfigArgumentParser, EvalHook, Trainer, save_args, set_random_seed, setup_logger
@@ -97,8 +98,8 @@ def parse_args():
                         help="Learning rate (default: 1.0).")
     parser.add_argument("--gamma", type=float, default=0.7, metavar="M",
                         help="Learning rate step gamma (default: 0.7).")
-    parser.add_argument("--no-cuda", action="store_true", default=False,
-                        help="Disables CUDA training.")
+    parser.add_argument("--device", type=str, default="cuda", metavar="D",
+                        help="Device to train on (default: 'cuda').")
     parser.add_argument("--seed", type=int, default=-1, metavar="S",
                         help="Random seed, set to negative to randomize everything (default: -1).")
     parser.add_argument("--deterministic", action="store_true",
@@ -120,9 +121,8 @@ def build_dataset(dir):
 
 def build_dataloader(args):
     train_dataset, test_dataset = build_dataset(args.dataset_dir)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
-                                               shuffle=True)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=args.test_batch_size)
     return train_loader, test_loader
 
 
@@ -133,14 +133,14 @@ def main():
     # 2. Basic setup
     setup_logger(output_dir=args.work_dir)
     save_args(args, os.path.join(args.work_dir, "runtime_config.yaml"))
+    # If args.seed is negative or None, will use a randomly generated seed
     set_random_seed(args.seed, args.deterministic)
-    use_cuda = not args.no_cuda and torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device = torch.device(args.device)
 
     # 3. Create data_loader, model, optimizer, lr_scheduler
     train_loader, test_loader = build_dataloader(args)
     model = Net(device)
-    optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+    optimizer = Adadelta(model.parameters(), lr=args.lr)
     lr_scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
     # 4. Create Trainer

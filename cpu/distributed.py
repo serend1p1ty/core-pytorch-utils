@@ -153,7 +153,7 @@ def is_main_process() -> bool:
 
 def _is_free_port(port: int) -> bool:
     ips = socket.gethostbyname_ex(socket.gethostname())[-1]
-    ips.append('localhost')
+    ips.append("localhost")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return all(s.connect_ex((ip, port)) != 0 for ip in ips)
 
