@@ -14,6 +14,8 @@ This package is a light-weight core library that provides the most common and es
 - `ConfigArgumentParser`: provides a argument parser that supports loading a YAML configuration file.
 - ......
 
+You can find a brief Chinese introduction at [zhihu](https://zhuanlan.zhihu.com/p/449181811).
+
 ## Installation
 
 ```
