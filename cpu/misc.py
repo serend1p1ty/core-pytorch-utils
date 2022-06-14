@@ -71,7 +71,7 @@ def set_random_seed(seed: Optional[int] = None, deterministic: bool = False) -> 
         deterministic (bool): If True, set the deterministic option for CUDNN backend.
     """
     if seed is None or seed < 0:
-        new_seed = np.random.randint(2**31)
+        new_seed = np.random.randint(2**32)
         logger.info(f"Got invalid seed: {seed}, will use the randomly generated seed: {new_seed}")
         seed = new_seed
     random.seed(seed)
