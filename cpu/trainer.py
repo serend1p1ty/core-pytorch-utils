@@ -188,9 +188,9 @@ class Trainer:
         self.register_hooks(default_hooks)
         logger.info(f"Registered default hooks: {self.hook_info}")
 
+        self._grad_scaler = GradScaler(enabled=self._enable_amp)
         if self._enable_amp:
             logger.info("Automatic Mixed Precision (AMP) training is on.")
-            self._grad_scaler = GradScaler()
 
         os.makedirs(self.ckpt_dir, exist_ok=True)
         split_line = "-" * 50
@@ -298,6 +298,9 @@ class Trainer:
         #####################
         # 2. Calculate loss #
         #####################
+        # If self._enable_amp=False, autocast and GradScaler’s calls become no-ops.
+        # This allows switching between default precision and mixed precision
+        # without if-else statements.
         with autocast(enabled=self._enable_amp):
             loss_dict = self.model(batch)
             if isinstance(loss_dict, torch.Tensor):
@@ -310,23 +313,16 @@ class Trainer:
         # 3. Calculate gradients #
         ##########################
         self.optimizer.zero_grad()
-        if self._enable_amp:
-            self._grad_scaler.scale(losses).backward()
-        else:
-            losses.backward()
+        self._grad_scaler.scale(losses).backward()
         if self._clip_grad_norm > 0:
-            if self._enable_amp:
-                self._grad_scaler.unscale_(self.optimizer)
+            self._grad_scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self._clip_grad_norm)
 
         ##############################
         # 4. Update model parameters #
         ##############################
-        if self._enable_amp:
-            self._grad_scaler.step(self.optimizer)
-            self._grad_scaler.update()
-        else:
-            self.optimizer.step()
+        self._grad_scaler.step(self.optimizer)
+        self._grad_scaler.update()
 
         self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time)
 
