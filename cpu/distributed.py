@@ -190,7 +190,7 @@ def init_distributed(auto: bool = False) -> Tuple[int]:
     elif "SLURM_PROCID" in os.environ:
         # launched by slurm
         rank = int(os.environ["SLURM_PROCID"])
-        world_size = int(os.environ['SLURM_NTASKS'])
+        world_size = int(os.environ["SLURM_NTASKS"])
         local_rank = rank % torch.cuda.device_count()
     else:
         print("Not using distributed mode.")

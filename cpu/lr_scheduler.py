@@ -122,7 +122,7 @@ class LRWarmupScheduler:
         if not isinstance(lrs, (list, tuple)):
             lrs = [lrs] * len(self.param_groups)
         for param_group, lr in zip(self.param_groups, lrs):
-            param_group['lr'] = lr
+            param_group["lr"] = lr
 
     def epoch_update(self, metric: Optional[float] = None) -> None:
         """Prepare the learning rate for the next epoch.

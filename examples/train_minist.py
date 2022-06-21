@@ -79,7 +79,7 @@ def test(model, test_loader):
     test_loss /= len(test_loader.dataset)
 
     logger.info("\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-        test_loss, correct, len(test_loader.dataset), 100. * correct / len(test_loader.dataset)))
+        test_loss, correct, len(test_loader.dataset), 100.0 * correct / len(test_loader.dataset)))
 
 
 def parse_args():

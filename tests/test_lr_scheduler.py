@@ -88,20 +88,20 @@ class MMCVRunner:
     def run(self):
         lrs = []
         self.iter = 0
-        self.call_hook('before_run')
+        self.call_hook("before_run")
         for self.epoch in range(self.max_epochs):
-            self.call_hook('before_train_epoch')
+            self.call_hook("before_train_epoch")
             for self.inner_iter in range(self.epoch_len):
-                self.call_hook('before_train_iter')
+                self.call_hook("before_train_iter")
                 lr = []
                 for param_group in self.optimizer.param_groups:
                     lr.append(param_group["lr"])
                 lrs.append(lr)
                 self.optimizer.step()
-                self.call_hook('after_train_iter')
+                self.call_hook("after_train_iter")
                 self.iter += 1
-            self.call_hook('after_train_epoch')
-        self.call_hook('after_run')
+            self.call_hook("after_train_epoch")
+        self.call_hook("after_run")
         return lrs
 
     def register_hook_from_cfg(self, hook_cfg):
@@ -364,7 +364,7 @@ def test_factor():
                             warmup_factor=0.001)
             lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
-            sche_cfg = dict(type='StepLrUpdaterHook', warmup='linear', warmup_iters=5,
+            sche_cfg = dict(type="StepLrUpdaterHook", warmup="linear", warmup_iters=5,
                             warmup_ratio=0.001, step=3, by_epoch=by_epoch)
             runner = MMCVRunner(max_epochs, epoch_len, opt_cfg, sche_cfg)
             lrs_mmcv = runner.run()
@@ -376,7 +376,7 @@ def test_factor():
                             warmup_mode="factor", warmup_factor=0.001)
             lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
-            sche_cfg = dict(type='StepLrUpdaterHook', warmup='linear', warmup_iters=5,
+            sche_cfg = dict(type="StepLrUpdaterHook", warmup="linear", warmup_iters=5,
                             warmup_ratio=0.001, step=[8, 11], by_epoch=by_epoch)
             runner = MMCVRunner(max_epochs, epoch_len, opt_cfg, sche_cfg)
             lrs_mmcv = runner.run()
@@ -388,7 +388,7 @@ def test_factor():
                             warmup_factor=0.001)
             lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
-            sche_cfg = dict(type='CosineRestartLrUpdaterHook', warmup='linear', warmup_iters=5,
+            sche_cfg = dict(type="CosineRestartLrUpdaterHook", warmup="linear", warmup_iters=5,
                             warmup_ratio=0.001, periods=[10] * 2 if by_epoch else [10] * 6,
                             restart_weights=[1] * 2 if by_epoch else [1] * 6, min_lr=0,
                             by_epoch=by_epoch)
@@ -469,7 +469,7 @@ def test_other_cases():
                     warmup_by_epoch=False, warmup_mode="factor", warmup_factor=0.001)
     lrs_cpu = get_lrs_cpu(max_epochs, epoch_len, opt_cfg, sche_cfg)
 
-    sche_cfg = dict(type='StepLrUpdaterHook', warmup='linear', warmup_iters=3, warmup_ratio=0.001,
+    sche_cfg = dict(type="StepLrUpdaterHook", warmup="linear", warmup_iters=3, warmup_ratio=0.001,
                     step=1, by_epoch=True)
     runner = MMCVRunner(max_epochs, epoch_len, opt_cfg, sche_cfg)
     lrs_mmcv = runner.run()

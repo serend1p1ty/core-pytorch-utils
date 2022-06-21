@@ -30,7 +30,7 @@ class InferenceHook(HookBase):
 
             plt.subplot(2, self.num // 2, i + 1)
             plt.tight_layout()
-            plt.imshow(img[0][0], cmap='gray')
+            plt.imshow(img[0][0], cmap="gray")
             plt.title(f"pred: {pred}, gt: {target[0]}")
             plt.xticks([])
             plt.yticks([])
