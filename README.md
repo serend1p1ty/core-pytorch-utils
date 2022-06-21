@@ -11,12 +11,20 @@ This package is a light-weight core library that provides the most common and es
 
 - `Trainer`: does tedious training logic for you.
 - `LRWarmupScheduler`: wraps all standard PyTorch LR scheduler to support warmup.
-- `ConfigArgumentParser`: provides a argument parser that supports loading a YAML configuration file.
+- `ConfigArgumentParser`: provides an argument parser that supports loading a YAML configuration file.
 - ......
 
 You can find a brief Chinese introduction at [zhihu](https://zhuanlan.zhihu.com/p/449181811).
 
 ## Installation
+
+From PyPI.
+
+```
+pip install core-pytorch-utils
+```
+
+Or from source.
 
 ```
 git clone https://github.com/serend1p1ty/core-pytorch-utils.git
