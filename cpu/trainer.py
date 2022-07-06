@@ -14,7 +14,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
-from .distributed import gather, get_rank, is_main_process
+from .distributed import gather, get_rank, get_world_size, is_main_process
 from .history_buffer import HistoryBuffer
 from .hooks import CheckpointHook, DistributedHook, HookBase, LoggerHook, LRUpdateHook
 from .logger import setup_logger
@@ -359,7 +359,7 @@ class Trainer:
         self._call_hooks("after_train")
 
     def save_checkpoint(self, file_name: str) -> None:
-        """Save training state: ``epoch``, ``model``, ``optimizer``, ``lr_scheduler``,
+        """Save training state: ``epoch``, ``num_gpus``, ``model``, ``optimizer``, ``lr_scheduler``,
         ``metric_storage``, ``hooks`` (optional), ``grad_scaler`` (optional).
 
         Args:
@@ -367,7 +367,7 @@ class Trainer:
         """
         data = {
             "epoch": self.epoch,
-            "num_gpus": torch.cuda.device_count(),
+            "num_gpus": get_world_size(),
             "model": self.model_or_module.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
@@ -409,7 +409,7 @@ class Trainer:
             return
 
         # check if the number of GPUs is consistent with the checkpoint
-        num_gpus = torch.cuda.device_count()
+        num_gpus = get_world_size()
         ckpt_num_gpus = checkpoint["num_gpus"]
         assert num_gpus == ckpt_num_gpus, (
             f"You are trying to load a checkpoint trained with {ckpt_num_gpus} GPUs, "
