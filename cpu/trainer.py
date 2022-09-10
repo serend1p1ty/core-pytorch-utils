@@ -344,12 +344,12 @@ class Trainer:
             resume_from_checkpoint (str): Path to the checkpoint. Defaults to None.
             auto_resume (bool): Defaults to True.
         """
-        logger.info(f"Start training from epoch {self.start_epoch}")
-
         if resume_from_checkpoint is not None:
             self.load_checkpoint(path=resume_from_checkpoint)
         else:
             self.load_checkpoint(auto_resume=auto_resume)
+
+        logger.info(f"Start training from epoch {self.start_epoch}")
 
         self._call_hooks("before_train")
         for self.epoch in range(self.start_epoch, self.max_epochs):
