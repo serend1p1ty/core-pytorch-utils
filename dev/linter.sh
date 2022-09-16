@@ -32,6 +32,8 @@ echo "Running isort ..."
 isort .
 
 echo "Running yapf ..."
+# Supplement of yapf, it adds one space after #, e.g., "#comment" -> "# comment".
+find . -type f -name "*.py" -print0 | xargs -0 sed -i -E "s/(^ *)#([^#! ])/\1# \2/g"
 yapf --recursive --in-place .
 
 echo "Running flake8 ..."
