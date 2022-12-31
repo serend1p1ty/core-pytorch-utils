@@ -23,13 +23,13 @@ class HookBase:
 
     In the hook method, users can access ``self.trainer`` to access more
     properties about the context (e.g., model, optimizer, current epoch).
-
+    hook是有优先级的，数字越小，优先级越高。这主要是为了解决有些hook需要其他hook的结果。
     Each hook has a priority, which is an integer from 1 to 10.
     The smaller the number, the higher the priority. Hooks are executed
     in order of priority from high to low. If two hooks have the same priority,
     they are executed in the order they are registered.
     """
-
+    # 相互引用时，要将trainer设为弱引用，防止无法进行垃圾回收。
     # A weak reference to the trainer object. Set by the trainer when the hook is registered.
     trainer: "cpu.Trainer" = None
     priority: int = 5
@@ -62,12 +62,14 @@ class HookBase:
     def checkpointable(self) -> bool:
         """A hook is checkpointable when it implements :meth:`state_dict` method.
         Its state will be saved into checkpoint.
+        有的hook是有状态的，需要在保存checkpoint时同步保存hook的状态，这样继续训练时才能保持连续。
+        判断的依据是hook是否有state_dict方法
         """
         return callable(getattr(self, "state_dict", None))
 
     @property
     def class_name(self) -> str:
-        """The class name of the hook."""
+        """The class name of the hook. hook的类的名称"""
         return self.__class__.__name__
 
     @property
