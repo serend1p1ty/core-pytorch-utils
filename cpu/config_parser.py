@@ -36,8 +36,7 @@ class ConfigArgumentParser(argparse.ArgumentParser):
     def parse_args(self, args=None):
         """Same as :meth:`ArgumentParser.parse_args`."""
         res, remaining_argv = self.config_parser.parse_known_args(args)
-        # 这是核心逻辑，如果有config文件，则通过yaml加载该文件，并且通过将对应参数的默认值设为config中的值
-        # 此时，命令行中如果没有声明该参数，则会自动使用config中提供的值。
+
         if res.config is not None:
             with open(res.config, "r") as f:
                 config_vars = yaml.safe_load(f)
