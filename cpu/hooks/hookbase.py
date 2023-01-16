@@ -82,7 +82,7 @@ class HookBase:
         return (self.trainer.epoch + 1) % n == 0 if n > 0 else False
 
     def every_n_iters(self, n: int) -> bool:
-        return (self.trainer.iter + 1) % n == 0 if n > 0 else False
+        return (self.trainer.cur_iter + 1) % n == 0 if n > 0 else False
 
     def every_n_inner_iters(self, n: int) -> bool:
         return (self.trainer.inner_iter + 1) % n == 0 if n > 0 else False
@@ -91,7 +91,7 @@ class HookBase:
         return self.trainer.epoch == self.trainer.max_epochs - 1
 
     def is_last_iter(self) -> bool:
-        return self.trainer.iter == self.trainer.max_iters - 1
+        return self.trainer.cur_iter == self.trainer.max_iters - 1
 
     def is_last_inner_iter(self) -> bool:
         return self.trainer.inner_iter == self.trainer.epoch_len - 1
