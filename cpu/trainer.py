@@ -106,7 +106,7 @@ class Trainer:
         self.metric_storage = MetricStorage()
 
         # counters
-        self.inner_iter: int  # [0, epoch_len - 1]
+        self.inner_iter: int = 0  # [0, epoch_len - 1]
         self.epoch: int  # [0, max_epochs - 1]
         self.start_epoch = 0  # [0, max_epochs - 1]
         self.max_epochs = max_epochs
@@ -217,7 +217,6 @@ class Trainer:
         Args:
             hook (HookBase): The hook to be registered.
         """
-        # hook的类型检查和优先级检查，确保符合要求
         assert isinstance(hook, HookBase)
         assert hook.priority >= 1 and hook.priority <= 10
         # To avoid circular reference, hooks and trainer cannot own each other. This normally
@@ -225,7 +224,6 @@ class Trainer:
         # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
         hook.trainer = weakref.proxy(self)
         inserted = False
-        # 该循环的目的是按照优先级顺序放置hook
         for i in range(len(self._hooks) - 1, -1, -1):
             if hook.priority >= self._hooks[i].priority:
                 self._hooks.insert(i + 1, hook)
@@ -331,7 +329,7 @@ class Trainer:
     def train_one_epoch(self) -> None:
         # evaluation hook changes the model to `eval` mode after finishing epoch
         self.model.train()
-        for self.inner_iter in range(self.epoch_len):
+        for self.inner_iter in range(self.inner_iter, self.epoch_len):
             self._call_hooks("before_iter")
             self.train_one_iter()
             self._call_hooks("after_iter")
@@ -374,6 +372,7 @@ class Trainer:
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "metric_storage": self.metric_storage,
+            "inner_iter": self.inner_iter
         }
         hook_states = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
         if hook_states:
@@ -418,7 +417,9 @@ class Trainer:
             f"but currently only have {num_gpus} GPUs.")
 
         # 1. load epoch
-        self.start_epoch = checkpoint["epoch"] + 1
+        self.start_epoch = max(checkpoint["epoch"] - 1, 0)
+        self.inner_iter = checkpoint['inner_iter'] + 1
+
 
         # 2. load model
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
@@ -502,9 +503,9 @@ class MetricStorage(dict):
                 The same metric must have the same ``smooth`` in different calls to :meth:`update`.
         """
         for key, value in kwargs.items():
-            if key in self._smooth: # 确保始终使用相同的smooth选项，一个metric应保持一致
+            if key in self._smooth:
                 assert self._smooth[key] == smooth
-            else: # 初始化存储metric值的historybuffer
+            else:
                 self._smooth[key] = smooth
                 self._history[key] = HistoryBuffer(window_size=self._window_size)
                 self._latest_iter[key] = -1

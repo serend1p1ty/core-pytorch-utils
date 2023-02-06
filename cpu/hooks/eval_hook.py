@@ -40,14 +40,15 @@ class EvalHook(HookBase):
             self._do_eval()
 
 
+
 class IterEvalHook(HookBase):
     """Run an evaluation function periodically.
 
-    It is executed every ``period`` iterations and after the last iter.
+    It is executed every ``period`` steps and after the last epoch.
 
     Args:
         period (int): The period to run ``eval_func``. Set to 0 to
-            not evaluate periodically, but still after the last iter.
+            not evaluate periodically, but still after the last epoch.
         eval_func (callable): A function which takes no arguments, and
             returns a dict of evaluation metrics.
     """
@@ -76,4 +77,3 @@ class IterEvalHook(HookBase):
     def after_iter(self) -> None:
         if self.every_n_iters(self._period) or self.is_last_iter():
             self._do_eval()
-

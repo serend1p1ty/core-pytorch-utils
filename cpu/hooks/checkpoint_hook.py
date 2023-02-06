@@ -45,13 +45,14 @@ class CheckpointHook(HookBase):
         self.__dict__.update(state_dict)
 
 
+
 class IterCheckpointHook(HookBase):
     """Save checkpoint periodically.
 
     Save checkpoint, if current steps is a multiple of ``period`` or ``max_iter`` is reached.
 
     Args:
-        period (int): Save checkpoint every ``period`` iters.
+        period (int): Save checkpoint every ``period`` epochs.
         max_to_keep (int): Maximum number of most current checkpoints to keep,
             previous checkpoints will be deleted. If None, save all checkpoints.
     """
@@ -65,8 +66,7 @@ class IterCheckpointHook(HookBase):
 
     def after_iter(self) -> None:
         if self.every_n_iters(self._period) or self.is_last_iter():
-            iter = self.trainer.cur_iter  # ranged in [0, max_iters - 1]
-            checkpoint_name = f"iter_{iter}.pth"
+            checkpoint_name = f"epoch_{self.trainer.epoch}_inneriter_{self.trainer.inner_iter}.pth"
             self.trainer.save_checkpoint(checkpoint_name)
 
             if self._max_to_keep is not None:
