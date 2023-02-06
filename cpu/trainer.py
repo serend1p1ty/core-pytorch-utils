@@ -106,7 +106,7 @@ class Trainer:
         self.metric_storage = MetricStorage()
 
         # counters
-        self.inner_iter: int  # [0, epoch_len - 1]
+        self.inner_iter: int = 0  # [0, epoch_len - 1]
         self.epoch: int  # [0, max_epochs - 1]
         self.start_epoch = 0  # [0, max_epochs - 1]
         self.max_epochs = max_epochs
@@ -372,6 +372,7 @@ class Trainer:
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "metric_storage": self.metric_storage,
+            "inner_iter": self.inner_iter
         }
         hook_states = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
         if hook_states:
@@ -417,7 +418,7 @@ class Trainer:
 
         # 1. load epoch
         self.start_epoch = max(checkpoint["epoch"] - 1, 0)
-        self.inner_iter = checkpoint['inner_iter']
+        self.inner_iter = checkpoint['inner_iter'] + 1
 
 
         # 2. load model
