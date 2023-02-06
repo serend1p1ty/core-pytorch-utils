@@ -217,7 +217,6 @@ class Trainer:
         Args:
             hook (HookBase): The hook to be registered.
         """
-        # hook的类型检查和优先级检查，确保符合要求
         assert isinstance(hook, HookBase)
         assert hook.priority >= 1 and hook.priority <= 10
         # To avoid circular reference, hooks and trainer cannot own each other. This normally
@@ -225,7 +224,6 @@ class Trainer:
         # See http://engineering.hearsaysocial.com/2013/06/16/circular-references-in-python/
         hook.trainer = weakref.proxy(self)
         inserted = False
-        # 该循环的目的是按照优先级顺序放置hook
         for i in range(len(self._hooks) - 1, -1, -1):
             if hook.priority >= self._hooks[i].priority:
                 self._hooks.insert(i + 1, hook)
@@ -502,9 +500,9 @@ class MetricStorage(dict):
                 The same metric must have the same ``smooth`` in different calls to :meth:`update`.
         """
         for key, value in kwargs.items():
-            if key in self._smooth: # 确保始终使用相同的smooth选项，一个metric应保持一致
+            if key in self._smooth:
                 assert self._smooth[key] == smooth
-            else: # 初始化存储metric值的historybuffer
+            else:
                 self._smooth[key] = smooth
                 self._history[key] = HistoryBuffer(window_size=self._window_size)
                 self._latest_iter[key] = -1
