@@ -329,7 +329,7 @@ class Trainer:
     def train_one_epoch(self) -> None:
         # evaluation hook changes the model to `eval` mode after finishing epoch
         self.model.train()
-        for self.inner_iter in range(self.epoch_len):
+        for self.inner_iter in range(self.inner_iter, self.epoch_len):
             self._call_hooks("before_iter")
             self.train_one_iter()
             self._call_hooks("after_iter")
@@ -416,7 +416,9 @@ class Trainer:
             f"but currently only have {num_gpus} GPUs.")
 
         # 1. load epoch
-        self.start_epoch = checkpoint["epoch"] + 1
+        self.start_epoch = max(checkpoint["epoch"] - 1, 0)
+        self.inner_iter = checkpoint['inner_iter']
+
 
         # 2. load model
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
