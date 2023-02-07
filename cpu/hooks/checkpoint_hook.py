@@ -66,6 +66,7 @@ class IterCheckpointHook(HookBase):
 
     def after_iter(self) -> None:
         if self.every_n_iters(self._period) or self.is_last_iter():
+            # use current epoch and current inneriter name checkpoint
             checkpoint_name = f"epoch_{self.trainer.epoch}_inneriter_{self.trainer.inner_iter}.pth"
             self.trainer.save_checkpoint(checkpoint_name)
 
