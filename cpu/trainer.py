@@ -335,6 +335,7 @@ class Trainer:
             self._call_hooks("before_iter")
             self.train_one_iter()
             self._call_hooks("after_iter")
+        self.inner_iter = 0
 
     def train(self, resume_from_checkpoint: Optional[str] = None, auto_resume: bool = True) -> None:
         """Start training.
