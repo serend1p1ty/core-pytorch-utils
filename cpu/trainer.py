@@ -107,7 +107,8 @@ class Trainer:
 
         # counters
         # inner_iter need be initiated to 0, because it will be checkpointed.
-        self.inner_iter: int = 0  # [0, epoch_len - 1]
+        self.inner_iter: int  # [0, epoch_len - 1]
+        self.start_iter = 0
         self.epoch: int  # [0, max_epochs - 1]
         self.start_epoch = 0  # [0, max_epochs - 1]
         self.max_epochs = max_epochs
@@ -331,11 +332,10 @@ class Trainer:
         # evaluation hook changes the model to `eval` mode after finishing epoch
         self.model.train()
         # from checkpointed inner_iter begin
-        for self.inner_iter in range(self.inner_iter, self.epoch_len):
+        for self.inner_iter in range(self.start_iter, self.epoch_len):
             self._call_hooks("before_iter")
             self.train_one_iter()
             self._call_hooks("after_iter")
-        self.inner_iter = 0
 
     def train(self, resume_from_checkpoint: Optional[str] = None, auto_resume: bool = True) -> None:
         """Start training.
@@ -375,7 +375,7 @@ class Trainer:
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "metric_storage": self.metric_storage,
-            "inner_iter": self.inner_iter # save inner iter for iter checkpoint
+            "iter": self.inner_iter
         }
         hook_states = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
         if hook_states:
@@ -420,10 +420,9 @@ class Trainer:
             f"but currently only have {num_gpus} GPUs.")
 
         # 1. load epoch
-        # for compatible reason, start_epoch should be epoch minus 1
-        self.start_epoch = max(checkpoint["epoch"] - 1, 0) 
-        # inner_iter should be next inner step, so we add 1
-        self.inner_iter = checkpoint['inner_iter'] + 1
+        self.start_epoch = checkpoint["epoch"] + 1
+        self.start_iter = checkpoint['iter'] + 1
+        
 
 
         # 2. load model
