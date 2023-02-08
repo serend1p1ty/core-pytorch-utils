@@ -420,9 +420,12 @@ class Trainer:
             f"but currently only have {num_gpus} GPUs.")
 
         # 1. load epoch
-        self.start_epoch = checkpoint["epoch"] + 1
+        self.start_epoch = checkpoint["epoch"]
         self.start_iter = checkpoint['iter'] + 1
         
+        if self.start_iter % self.epoch_len == 0:
+            self.start_epoch += 1
+            self.start_iter = 0
 
 
         # 2. load model
