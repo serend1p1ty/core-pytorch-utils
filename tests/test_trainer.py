@@ -109,7 +109,7 @@ def test_basic_run():
             # check counter
             assert trainer.cur_iter == trainer.max_iters - 1
             assert trainer.inner_iter == trainer.epoch_len - 1
-            assert trainer.epoch == trainer.max_epochs - 1
+            assert trainer.cur_epoch == trainer.max_epochs - 1
             assert trainer.lr_scheduler.last_iter == trainer.max_iters
             assert trainer.lr_scheduler.last_epoch == trainer.max_epochs
 

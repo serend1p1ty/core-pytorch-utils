@@ -72,8 +72,13 @@ class LoggerHook(HookBase):
             if "loss" in key
         ]
 
-        process_string = "Epoch: [{}][{}/{}]".format(self.trainer.epoch, self.trainer.inner_iter,
-                                                     self.trainer.epoch_len - 1)
+        if self.trainer.train_by_epoch:
+            process_string = "Epoch: [{}][{}/{}]".format(self.trainer.cur_epoch,
+                                                         self.trainer.inner_iter,
+                                                         self.trainer.epoch_len - 1)
+        else:
+            process_string = "Iter: [{}/{}]".format(self.trainer.cur_iter,
+                                                    self.trainer.max_iters - 1)
 
         space = " " * 2
         logger.info("{process}{eta}{losses}{iter_time}{data_time}{lr}{memory}".format(
@@ -93,6 +98,9 @@ class LoggerHook(HookBase):
                 self._last_write[key] = iter
 
     def after_iter(self) -> None:
-        if self.every_n_inner_iters(self._period):
+        if self.trainer.train_by_epoch and self.every_n_inner_iters(self._period):
+            self._write_console()
+            self._write_tensorboard()
+        if not self.trainer.train_by_epoch and self.every_n_iters(self._period):
             self._write_console()
             self._write_tensorboard()

@@ -131,7 +131,8 @@ def test_minist_training(device="cpu", max_epochs=1):
                                                                       lr_scheduler, max_epochs)
 
         model, optimizer, lr_scheduler, train_loader, test_loader = _setup(dir, device)
-        trainer = Trainer(model, optimizer, lr_scheduler, train_loader, max_epochs, dir)
+        trainer = Trainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler,
+                          data_loader=train_loader, max_epochs=max_epochs, work_dir=dir)
         hook = _EvalHook(lambda: _test(model, test_loader))
         trainer.register_hook(hook)
         trainer.train()

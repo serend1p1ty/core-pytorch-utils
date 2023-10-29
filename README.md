@@ -16,6 +16,10 @@ This package is a light-weight core library that provides the most common and es
 
 You can find a brief Chinese introduction at [zhihu](https://zhuanlan.zhihu.com/p/449181811).
 
+## Updates
+
+[2023/10/29]: Now CPU supports iteration-based training, checkpointing and evaluation!
+
 ## Installation
 
 From PyPI.

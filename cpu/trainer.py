@@ -49,12 +49,15 @@ class Trainer:
         optimizer (torch.optim.Optimizer)
         lr_scheduler (optim.lr_scheduler._LRScheduler)
         data_loader (torch.utils.data.DataLoader): Training data loader.
-        max_epochs (int): Total training epochs.
+        unpack_batch_dict (bool): Whether to unpack the batch dict returned by the data_loader,
+            i.e., use model(**batch) instead of model(batch). Defaults to False.
+        max_epochs (int): Total training epochs. If > 0, train by epoch.
+        max_iters (int): Total training iterations. If > 0, train by iteration.
         work_dir (str): The working directory to save checkpoints and logs.
             Defaults to "work_dir".
         max_num_checkpoints (int): The maximum number of checkpoints to save.
             If None, save all checkpoints. Defaults to None.
-        checkpoint_period (int): The period (epoch-based) to save checkpoint. Defaults to 1.
+        checkpoint_period (int): The period to save checkpoint. Defaults to 1.
         log_period (int): The period (iter-based) to log. Defaults to 50.
         clip_grad_norm (float): Max norm of the gradients. If <= 0, will not clip gradients.
             Defaults to 0.
@@ -81,7 +84,9 @@ class Trainer:
         optimizer: optim.Optimizer,
         lr_scheduler: optim.lr_scheduler._LRScheduler,
         data_loader: DataLoader,
-        max_epochs: int,
+        unpack_batch_dict: bool = False,
+        max_epochs: int = 0,
+        max_iters: int = 0,
         work_dir: str = "work_dir",
         max_num_checkpoints: int = None,
         checkpoint_period: int = 1,
@@ -96,20 +101,32 @@ class Trainer:
         warmup_init_lr: float = 0.0,
         warmup_factor: float = 0.0,
     ):
+        # We set the model to training mode in the trainer. However it's valid to train a model
+        # that's in eval mode. If you want your model (or a submodule of it) to behave like
+        # evaluation during training, you can overwrite its train() method.
+        model.train()
+
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = LRWarmupScheduler(lr_scheduler, by_epoch, len(data_loader), warmup_t,
                                               warmup_by_epoch, warmup_mode, warmup_init_lr,
                                               warmup_factor)
         self.data_loader = data_loader
+        self.unpack_batch_dict = unpack_batch_dict
         self.work_dir = work_dir
         self.metric_storage = MetricStorage()
 
-        # counters
-        self.inner_iter: int  # [0, epoch_len - 1]
-        self.epoch: int  # [0, max_epochs - 1]
-        self.start_epoch = 0  # [0, max_epochs - 1]
-        self.max_epochs = max_epochs
+        assert (max_epochs > 0) ^ (max_iters > 0), "Please specify either max_epochs or max_iters."
+        self.train_by_epoch = max_epochs > 0
+        if self.train_by_epoch:
+            self.epoch_len = len(data_loader)
+            self.max_epochs = max_epochs
+            self.max_iters = self.max_epochs * self.epoch_len
+        else:
+            self.max_iters = max_iters
+
+        self.cur_iter = 0  # [0, max_iters - 1]
+        self.start_iter = 0  # [0, max_iters - 1]
 
         self._hooks: List[HookBase] = []
         self._data_iter = iter(data_loader)
@@ -127,24 +144,16 @@ class Trainer:
         return self.optimizer.param_groups[0]["lr"]
 
     @property
-    def epoch_len(self) -> int:
-        """The number of iterations per epoch."""
-        return len(self.data_loader)
+    def inner_iter(self) -> int:
+        """The iteration within the epoch, ranged in [0, epoch_len - 1]."""
+        assert self.train_by_epoch, "inner_iter is only available when training by epoch."
+        return self.cur_iter % self.epoch_len
 
     @property
-    def max_iters(self) -> int:
-        """The total training iterations."""
-        return self.max_epochs * self.epoch_len
-
-    @property
-    def cur_iter(self) -> int:
-        """The current iteration ranged in [0, max_iters - 1]."""
-        return self.epoch * self.epoch_len + self.inner_iter
-
-    @property
-    def start_iter(self) -> int:
-        """The iteration to start from. The minimum possible value is 0."""
-        return self.start_epoch * self.epoch_len
+    def cur_epoch(self) -> int:
+        """The current epoch, ranged in [0, max_epochs - 1]."""
+        assert self.train_by_epoch, "cur_epoch is only available when training by epoch."
+        return self.cur_iter // self.epoch_len
 
     @property
     def ckpt_dir(self) -> str:
@@ -267,8 +276,9 @@ class Trainer:
             }
             losses_reduced = sum(metrics_dict.values())
             if not np.isfinite(losses_reduced):
-                raise FloatingPointError(f"Loss became infinite or NaN at epoch={self.epoch}! "
-                                         f"loss_dict={metrics_dict}.")
+                raise FloatingPointError(
+                    f"Loss became infinite or NaN at iteration={self.cur_iter}! "
+                    f"loss_dict={metrics_dict}.")
 
             self.log(self.cur_iter, total_loss=losses_reduced)
             if len(metrics_dict) > 1:
@@ -302,7 +312,10 @@ class Trainer:
         # This allows switching between default precision and mixed precision
         # without if-else statements.
         with autocast(enabled=self._enable_amp):
-            loss_dict = self.model(batch)
+            if self.unpack_batch_dict:
+                loss_dict = self.model(**batch)
+            else:
+                loss_dict = self.model(batch)
             if isinstance(loss_dict, torch.Tensor):
                 losses = loss_dict
                 loss_dict = {"total_loss": loss_dict}
@@ -326,14 +339,6 @@ class Trainer:
 
         self._log_iter_metrics(loss_dict, data_time, time.perf_counter() - iter_start_time)
 
-    def train_one_epoch(self) -> None:
-        # evaluation hook changes the model to `eval` mode after finishing epoch
-        self.model.train()
-        for self.inner_iter in range(self.epoch_len):
-            self._call_hooks("before_iter")
-            self.train_one_iter()
-            self._call_hooks("after_iter")
-
     def train(self, resume_from_checkpoint: Optional[str] = None, auto_resume: bool = True) -> None:
         """Start training.
 
@@ -349,13 +354,17 @@ class Trainer:
         else:
             self.load_checkpoint(auto_resume=auto_resume)
 
-        logger.info(f"Start training from epoch {self.start_epoch}")
+        logger.info(f"Start training from iteration {self.start_iter}")
 
         self._call_hooks("before_train")
-        for self.epoch in range(self.start_epoch, self.max_epochs):
-            self._call_hooks("before_epoch")
-            self.train_one_epoch()
-            self._call_hooks("after_epoch")
+        for self.cur_iter in range(self.start_iter, self.max_iters):
+            if self.train_by_epoch and self.cur_iter % self.epoch_len == 0:
+                self._call_hooks("before_epoch")
+            self._call_hooks("before_iter")
+            self.train_one_iter()
+            self._call_hooks("after_iter")
+            if self.train_by_epoch and (self.cur_iter + 1) % self.epoch_len == 0:
+                self._call_hooks("after_epoch")
         self._call_hooks("after_train")
 
     def save_checkpoint(self, file_name: str) -> None:
@@ -366,13 +375,13 @@ class Trainer:
             filename (str): The checkpoint will be saved as ``ckpt_dir/filename``.
         """
         data = {
-            "epoch": self.epoch,
             "num_gpus": get_world_size(),
             "model": self.model_or_module.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "metric_storage": self.metric_storage,
         }
+        data.update(dict(epoch=self.cur_epoch) if self.train_by_epoch else dict(iter=self.cur_iter))
         hook_states = {h.class_name: h.state_dict() for h in self._hooks if h.checkpointable}
         if hook_states:
             data["hooks"] = hook_states
@@ -397,7 +406,8 @@ class Trainer:
         if path is None and auto_resume:
             latest_ckpt = osp.join(self.ckpt_dir, "latest.pth")
             if not os.path.exists(latest_ckpt):
-                logger.warning(f"Not found {latest_ckpt} to auto resume from.")
+                logger.warning("You specify auto_resume=True, but we fail to find "
+                               f"{latest_ckpt} to auto resume from.")
             else:
                 logger.info(f"Found {latest_ckpt} to auto resume from.")
                 path = latest_ckpt
@@ -415,8 +425,12 @@ class Trainer:
             f"You are trying to load a checkpoint trained with {ckpt_num_gpus} GPUs, "
             f"but currently only have {num_gpus} GPUs.")
 
-        # 1. load epoch
-        self.start_epoch = checkpoint["epoch"] + 1
+        # 1. load epoch / iteration
+        if self.train_by_epoch:
+            start_epoch = checkpoint["epoch"] + 1
+            self.start_iter = start_epoch * self.epoch_len
+        else:
+            self.start_iter = checkpoint["iter"] + 1
 
         # 2. load model
         incompatible = self.model_or_module.load_state_dict(checkpoint["model"], strict=False)
