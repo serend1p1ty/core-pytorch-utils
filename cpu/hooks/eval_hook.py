@@ -40,8 +40,13 @@ class EvalHook(HookBase):
             self.log(counter, **res, smooth=False)
 
     def after_epoch(self) -> None:
-        train_by_epoch = self.trainer.train_by_epoch
-        if train_by_epoch and (self.every_n_epochs(self._period) or self.is_last_epoch()):
+        if not self.trainer.train_by_epoch:
+            return
+        if self.every_n_epochs(self._period) or self.is_last_epoch():
             self._do_eval()
-        if not train_by_epoch and (self.every_n_iters(self._period) or self.is_last_iter()):
+
+    def after_iter(self) -> None:
+        if self.trainer.train_by_epoch:
+            return
+        if self.every_n_iters(self._period) or self.is_last_iter():
             self._do_eval()
