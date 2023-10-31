@@ -14,7 +14,7 @@ on:
 
 jobs:
   linter:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python 3.7
@@ -35,7 +35,7 @@ jobs:
           echo "Running flake8"
           flake8 .
   cpu_test:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: [3.7]
