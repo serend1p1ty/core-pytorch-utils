@@ -2,5 +2,5 @@ mock==5.1.0
 timm==0.6.13
 mmcv==1.4.0
 fvcore==0.1.5.post20221221
-tensorflow==2.13.1
+tensorflow==2.11.0
 torchvision
