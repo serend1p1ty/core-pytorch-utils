@@ -106,9 +106,13 @@ class Trainer:
         # evaluation during training, you can overwrite its train() method.
         model.train()
 
+        assert (max_epochs > 0) ^ (max_iters > 0), "Please specify either max_epochs or max_iters."
+        self.train_by_epoch = max_epochs > 0
+
         self.model = model
         self.optimizer = optimizer
-        self.lr_scheduler = LRWarmupScheduler(lr_scheduler, by_epoch, len(data_loader), warmup_t,
+        epoch_len = len(data_loader) if self.train_by_epoch else None
+        self.lr_scheduler = LRWarmupScheduler(lr_scheduler, by_epoch, epoch_len, warmup_t,
                                               warmup_by_epoch, warmup_mode, warmup_init_lr,
                                               warmup_factor)
         self.data_loader = data_loader
@@ -116,8 +120,6 @@ class Trainer:
         self.work_dir = work_dir
         self.metric_storage = MetricStorage()
 
-        assert (max_epochs > 0) ^ (max_iters > 0), "Please specify either max_epochs or max_iters."
-        self.train_by_epoch = max_epochs > 0
         if self.train_by_epoch:
             self.epoch_len = len(data_loader)
             self.max_epochs = max_epochs
